@@ -49,3 +49,4 @@ projects/
 # Logs
 *.log
 celerybeat-schedule
+.codex/
