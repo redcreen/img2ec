@@ -16,6 +16,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from img2ec.api import projects, scenes
+    app.include_router(projects.router)
+    app.include_router(scenes.router)
+
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
