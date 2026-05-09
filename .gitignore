@@ -43,10 +43,15 @@ Thumbs.db
 # Project artifacts (user-generated)
 backend/storage/
 backend/img2ec.db
-projects/
+/projects/
 ~/img2ec/
 
 # Logs
 *.log
 celerybeat-schedule
 .codex/
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
