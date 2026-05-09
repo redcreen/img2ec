@@ -119,31 +119,44 @@ python scripts/smoke_master_gen.py
 - `[3/4]` 提交 workflow，~100s 出图（首次；后续 ~30s）
 - `[4/4]` `/tmp/img2ec_smoke/smoke_master_1x1.png` 存在，size > 100KB
 
-## IPAdapter 待修（Phase 1.5）
+## IPAdapter Flux — 已识别 BLOCKER（Phase 1.5 单独处理）
 
 目标：让商品 cutout 真正注入到生成结果中，而不是只跑 prompt。
 
-**Workflow** 已写好骨架：`workflow_master_with_ipadapter_reference.json`（在 gpu box 上）。结构：
+**Workflow 草稿已就位**：`workflow_master_ipadapter_v2.json`（在 gpu box 上）。结构与 baseline 相同，多两个节点：
 ```
 LoadImage(__CUTOUT__) → ApplyIPAdapterFlux(weight=__IP_WEIGHT__)
                         ↑
-IPAdapterFluxLoader(flux-ip-adapter-instantx.bin, siglip-so400m-patch14-384)
-   ↑ ↑
-   被这步阻塞：120s 内 siglip clip_vision 加载没完成（首次加载 3GB+ siglip 模型 + 处理器配置可能慢）
+IPAdapterFluxLoader(flux-ip-adapter-instantx.bin, "google/siglip-so400m-patch14-384")
 ```
 
-**修法可能**：
-1. **延长测试 timeout 到 5 分钟**重试一次（可能是单次首次加载慢，后续会快）
-2. **确认 siglip 处理器配置文件**已在 `~/.cache/huggingface/hub/models--google--siglip-so400m-patch14-384/` 下，缺则运行：
-   ```cmd
-   D:\AI\ComfyUI_windows_portable\python_embeded\python.exe -c "from transformers import AutoProcessor; AutoProcessor.from_pretrained('google/siglip-so400m-patch14-384')"
-   ```
-3. **检查 IPAdapterFluxLoader 节点是否接受 HF id 字符串还是只接受本地路径**。可能需要把 `clip_vision` 字段改为本地相对路径（`"models/clip_vision/siglip-so400m-patch14-384.safetensors"`）+ 在 ComfyUI 的 `extra_model_paths.yaml` 配置 siglip。
+### Blocker
 
-接通后：
-- 把 mac 端 `backend/workflows/generate_master_1x1.json` 替换为 IPAdapter 版本
-- 修改 `master_gen.py`：把 `ip_weight=ip_weight`（0-100）改为 `ip_weight=ip_weight / 100`（0.0-1.0），匹配 Flux IPAdapter 标准
-- 重跑 smoke
+`ComfyUI-IPAdapter-Flux` 自定义节点的 `IPAdapterFluxLoader` 在加载 siglip clip_vision 时调用 `transformers.AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")`。这个调用：
+
+1. **优先尝试本地**：`models/clip_vision/siglip-so400m-patch14-384/` 目录里要有完整 HF 仓库文件结构（`config.json` + `preprocessor_config.json` + `tokenizer.json` + `special_tokens_map.json` + `model.safetensors` + 其它）
+2. **失败回退到 HF Hub 下载**：但 gpu box 网络无法访问 huggingface.co（实测多次 timeout）
+
+我们已有的 `siglip-so400m-patch14-384.safetensors`（3.27 GB）只是模型权重，缺所有配置/tokenizer JSON 文件。手动伪造 JSON 可工作但风险高。
+
+### 修法（按可行性排序）
+
+1. **解决网络**：让 gpu box 能 GET huggingface.co（VPN / 公司代理 / 镜像站）。一次下载完成后该模型永久缓存在 `~/.cache/huggingface/hub/`，后续不需要网。
+2. **手动拷贝 HF 仓库**：从一台能上 HF 的机器（mac？）下载完整 `google/siglip-so400m-patch14-384` 仓库（小文件 + 大权重，~3.5 GB），rsync 到 gpu box 的 `~/.cache/huggingface/hub/models--google--siglip-so400m-patch14-384/`。
+3. **方案切换**：放弃 IPAdapter，改用 ControlNet — 已有 `flux-controlnet-union-pro.safetensors`，但需要装 `comfyui_controlnet_aux` 提供 Canny 等预处理器（也需网络）。
+4. **方案切换 2**：用 SDXL + 标准 IPAdapter Plus（`ip-adapter-plus_sdxl_vit-h.safetensors` + `CLIP-ViT-H-14`），SDXL 的 IPAdapter 走 ComfyUI 内置 clip_vision，**不依赖 HF transformers**。代价：底模换 SDXL，质量比 Flux 略差但生态稳定。
+
+### 临时方案（已采纳，Phase 1 用）
+
+baseline workflow 跑通 ComfyUI 集成链路，**不注入商品**。生成的 master 是按 prompt 描述的纯场景图。可以验证 mac↔gpu box 通信、文件 IO、Pillow 派生、API/UI 整体流程。
+
+**生产可用性需要 IPAdapter 修通后才有**。当前 master 看起来像漂亮的场景图，但商品本身没参与生成 — 不是真正可发布的电商图。
+
+### 接通后要改的
+
+- `backend/workflows/generate_master_1x1.json` → 替换为 IPAdapter 版本（含 LoadImage + IPAdapterFluxLoader + ApplyIPAdapterFlux 节点）
+- `backend/img2ec/core/master_gen.py`：`ip_weight=ip_weight` → `ip_weight=ip_weight / 100`（Flux IPAdapter weight 0.0-1.0）
+- 重跑 `scripts/smoke_master_gen.py`，确认输出图含商品视觉特征
 
 ## 后期增强（Phase 2+）
 

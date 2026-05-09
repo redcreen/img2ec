@@ -7,6 +7,9 @@ class Settings(BaseSettings):
 
     db_url: str = "sqlite:///./img2ec.db"
     redis_url: str = "redis://localhost:6379/0"
+    # When true, Celery runs in-process (no Redis/worker needed). Useful for smoke tests
+    # and dev without Docker. Set IMG2EC_CELERY_EAGER=true in env or .env.
+    celery_eager: bool = False
     # ComfyUI HTTP API. SSH alias `gpu` is not DNS-resolvable; use the LAN IPv4 directly.
     # Override via IMG2EC_COMFY_URL env var or .env file if your gpu box has a different IP.
     comfy_url: str = "http://192.168.2.20:8188"

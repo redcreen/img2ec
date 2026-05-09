@@ -14,3 +14,8 @@ celery_app = Celery(
 celery_app.conf.task_acks_late = True
 celery_app.conf.task_reject_on_worker_lost = True
 celery_app.conf.worker_prefetch_multiplier = 1
+
+if settings.celery_eager:
+    # In-process synchronous mode: .delay() runs immediately in caller thread, no broker needed.
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = True
