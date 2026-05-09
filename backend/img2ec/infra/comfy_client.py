@@ -22,7 +22,8 @@ class ComfyClient:
     def __init__(self, base_url: str, timeout: int = 300):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._client = httpx.Client(timeout=timeout)
+        # ComfyUI 通常在 LAN，禁用 env proxy 检测避免 SOCKS proxy 等干扰
+        self._client = httpx.Client(timeout=timeout, trust_env=False)
 
     def render_workflow(self, workflow_path: Path, **placeholders: Any) -> dict[str, Any]:
         """读 workflow JSON 模板，替换 __KEY__ 占位符为传入值。"""
