@@ -1,0 +1,10 @@
+{
+  "_doc": "Phase 1 MVP: 1:1 master 生成 workflow API JSON。在 ComfyUI 上搭好后，菜单 Save (API Format) 导出替换此文件。需要的节点：LoadImage(cutout) → IPAdapterApply → KSampler → SaveImage。",
+  "_inputs_doc": {
+    "cutout_image": "节点 ID 用 LoadImage，文件名占位 __CUTOUT__",
+    "prompt": "CLIPTextEncode positive，文本占位 __PROMPT__",
+    "negative": "CLIPTextEncode negative，文本占位 __NEG__",
+    "ip_weight": "IPAdapterApply.weight，占位 __IP_WEIGHT__",
+    "seed": "KSampler.seed，占位 __SEED__"
+  }
+}
