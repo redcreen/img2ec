@@ -1,10 +1,112 @@
 {
-  "_doc": "Phase 1 MVP: 1:1 master 生成 workflow API JSON。在 ComfyUI 上搭好后，菜单 Save (API Format) 导出替换此文件。需要的节点：LoadImage(cutout) → IPAdapterApply → KSampler → SaveImage。",
+  "_doc": "Phase 1 MVP baseline workflow: pure prompt-driven Flux dev FP8 1024x1024. NOT YET integrated with IPAdapter — the商品 cutout is uploaded but not used (this validates pipeline wiring; the 商品 itself won't appear in output until Phase 1.5 IPAdapter integration). Tested 2026-05-09 on gpu box (RTX 4080 SUPER), 12.7s/image.",
   "_inputs_doc": {
-    "cutout_image": "节点 ID 用 LoadImage，文件名占位 __CUTOUT__",
-    "prompt": "CLIPTextEncode positive，文本占位 __PROMPT__",
-    "negative": "CLIPTextEncode negative，文本占位 __NEG__",
-    "ip_weight": "IPAdapterApply.weight，占位 __IP_WEIGHT__",
-    "seed": "KSampler.seed，占位 __SEED__"
+    "PROMPT": "Positive prompt — scene description, e.g. 'on white marble surface, warm soft window light, premium product photography'",
+    "NEG": "Negative prompt, e.g. 'blurry, low quality, watermark'",
+    "SEED": "Integer random seed",
+    "CUTOUT_unused": "Currently uploaded but ignored; placeholder kept for forward compatibility",
+    "IP_WEIGHT_unused": "Currently ignored; will be 0.0-1.0 float once IPAdapter is wired"
+  },
+  "1": {
+    "inputs": {
+      "ckpt_name": "flux1-dev-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Flux1-Dev-FP8"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "Load Dual CLIP"
+    }
+  },
+  "3": {
+    "inputs": {
+      "clip": ["2", 0],
+      "clip_l": "__PROMPT__",
+      "t5xxl": "__PROMPT__",
+      "guidance": 3.5
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "4": {
+    "inputs": {
+      "clip": ["2", 0],
+      "clip_l": "__NEG__",
+      "t5xxl": "__NEG__",
+      "guidance": 3.5
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Latent (1024x1024)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "vae_name": "taef1"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "7": {
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "latent_image": ["5", 0],
+      "seed": "__SEED__",
+      "steps": 20,
+      "cfg": 7.5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["6", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "images": ["8", 0],
+      "filename_prefix": "img2ec_master"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
   }
 }

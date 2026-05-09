@@ -7,7 +7,9 @@ class Settings(BaseSettings):
 
     db_url: str = "sqlite:///./img2ec.db"
     redis_url: str = "redis://localhost:6379/0"
-    comfy_url: str = "http://gpu:8188"
+    # ComfyUI HTTP API. SSH alias `gpu` is not DNS-resolvable; use the LAN IPv4 directly.
+    # Override via IMG2EC_COMFY_URL env var or .env file if your gpu box has a different IP.
+    comfy_url: str = "http://192.168.2.20:8188"
     comfy_timeout: int = 300
 
     root_path: Path = Path.home() / "img2ec" / "projects"
