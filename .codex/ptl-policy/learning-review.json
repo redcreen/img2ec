@@ -1,0 +1,14 @@
+{
+  "candidates": [],
+  "project": "img2ec",
+  "registryPath": "/Users/redcreen/.codex/project-assistant/learned-registry.json",
+  "schema": "project-assistant.ptl-learning-review.v1",
+  "summary": {
+    "acceptedLocal": 0,
+    "acceptedRegistry": 8,
+    "pending": 0,
+    "rejected": 0,
+    "snoozed": 0
+  },
+  "updatedAt": "2026-05-09T09:02:31Z"
+}

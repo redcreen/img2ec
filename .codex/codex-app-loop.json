@@ -1,0 +1,24 @@
+{
+  "counters": {
+    "routed": 1
+  },
+  "createdAt": "2026-05-09T09:02:31Z",
+  "lastEvents": [
+    {
+      "action": "routed",
+      "at": "2026-05-09T09:02:31Z",
+      "cwd": "/Users/redcreen/Project/img2ec",
+      "eventId": "3c984bb3d26209f49ef73d54",
+      "line": 7,
+      "message": "Bulk scaffold Task 1 of img2ec Phase 1 MVP. Read exact file contents from the plan at /Users/redcreen/Project/img2ec/docs/superpowers/plans/2026-05-09-img2ec...",
+      "repo": "/Users/redcreen/Project/img2ec",
+      "routeReason": "project-marker",
+      "session": "/Users/redcreen/.codex/sessions/2026/05/09/rollout-2026-05-09T17-02-12-019e0bf9-0e2a-7f21-834e-86a2a2d957ca.jsonl",
+      "taskId": "T01",
+      "timestamp": "2026-05-09T09:02:22.629Z"
+    }
+  ],
+  "project": "img2ec",
+  "schema": "project-assistant.codex-app-loop.v1",
+  "updatedAt": "2026-05-09T09:02:31Z"
+}
