@@ -3,7 +3,7 @@ def test_create_project_with_default_scenes(cli):
     assert r.status_code == 201
     data = r.json()
     assert data["name"] == "default"
-    assert data["scene_count"] == 1
+    assert data["scene_count"] == 16
 
 
 def test_create_project_without_scenes(cli):

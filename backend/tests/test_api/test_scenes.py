@@ -1,10 +1,10 @@
 def test_scene_crud(cli):
     pid = cli.post("/api/projects", json={"name": "p", "copy_default_scenes": True}).json()["id"]
 
-    # list 应该有 1 个内置场景
+    # list 应该有 16 个内置场景
     scenes = cli.get(f"/api/projects/{pid}/scenes").json()
-    assert len(scenes) == 1
-    assert scenes[0]["name"] == "大理石台·暖光"
+    assert len(scenes) == 16
+    assert "大理石台·暖光" in [s["name"] for s in scenes]
 
     # create
     r = cli.post(f"/api/projects/{pid}/scenes", json={
