@@ -1,13 +1,17 @@
-"""Phase 2: 5 master + 15 derived 完整 pipeline。"""
+"""Path C pipeline: Codex 直接 image-to-image 出 master，跳过 rembg + PIL composite。
+
+简化的链路：
+  source photo → Codex (input + scene prompt) → 5 master → Pillow 派生 → 15 platform outputs
+
+之前 Path A 流程（rembg → cutout → AI bg → PIL paste 商品 + shadow）保留为 fallback。
+"""
 from pathlib import Path
 from typing import Callable
 
-from img2ec.core.bg_detect import is_white_background
-from img2ec.core.cutout import cutout_with_rembg
 from img2ec.core.derive import derive_all_for_image
 from img2ec.core.master_gen import generate_all_masters
 from img2ec.infra.comfy_client import ComfyClient
-from img2ec.infra.fs_layout import cutout_dir, master_dir, outputs_dir
+from img2ec.infra.fs_layout import master_dir, outputs_dir
 
 ProgressCb = Callable[[str, int], None]
 MasterDoneCb = Callable[[str, Path, int, int], None]  # (key, master_path, idx, total)
@@ -30,16 +34,7 @@ def process_one_image(
     """跑完返回派生输出 {platform: [paths]} 字典。"""
     cb: ProgressCb = on_progress or (lambda _s, _p: None)
 
-    # 阶段 1: 抠图
-    if is_white_background(src_path):
-        cutout_path = src_path
-    else:
-        cb("cutting", 0)
-        cutout_path = cutout_dir(sku_dir) / f"{image_stem}.png"
-        cutout_with_rembg(src_path, cutout_path)
-        cb("cutting", 100)
-
-    # 阶段 2: 生 5 张 master，每张完成后回调更新进度（5 张 = 0%, 20%, 40%, 60%, 80%, 100%）
+    # Path C：Codex 直接吃用户原图 + 场景 prompt 出 master，5 张依次生成
     cb("generating", 0)
     master_out = master_dir(sku_dir)
 
@@ -52,7 +47,7 @@ def process_one_image(
     master_paths = generate_all_masters(
         client=comfy_client,
         workflows_dir=workflows_dir,
-        cutout_path=cutout_path,
+        source_image=src_path,
         prompt=scene_prompt,
         negative_prompt=scene_neg,
         ip_weight=ip_weight,
@@ -62,7 +57,7 @@ def process_one_image(
         on_master_done=_on_master_done,
     )
 
-    # 阶段 3: 派生
+    # Pillow 派生 15 个平台尺寸（裁剪/缩放）
     cb("composing", 0)
     derived = derive_all_for_image(
         master_paths=master_paths,

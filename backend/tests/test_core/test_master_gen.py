@@ -40,17 +40,64 @@ def _stub_comfy_client(bg_color: tuple[int, int, int] = (240, 230, 210)) -> Magi
     return mock
 
 
-def test_generate_all_masters_via_comfyui_path(tmp_path):
-    """Test the legacy ComfyUI Flux backend (use_codex=False)."""
-    cutout = _make_rgba_cutout(tmp_path)
+def _make_source_photo(tmp_path: Path) -> Path:
+    """A source product photo (商品 with cluttered background, simulates user upload)."""
+    img = Image.new("RGB", (800, 800), (220, 200, 180))  # cluttered bg color
+    p = tmp_path / "source.jpg"
+    img.save(p, "JPEG", quality=92)
+    return p
+
+
+def test_generate_all_masters_via_codex_native_path(tmp_path, monkeypatch):
+    """Path C: Codex 直接 image-to-image — 单次调用出含商品的 master，无 rembg/composite."""
+    source = _make_source_photo(tmp_path)
+    out_dir = tmp_path / "master"
+
+    def fake_codex_master(*, source_image, scene_prompt, ratio_key, output_path, **kw):
+        Image.new("RGB", (1024, 1024), (200, 50, 50)).save(output_path, "JPEG", quality=92)
+        return output_path
+
+    monkeypatch.setattr("img2ec.core.master_gen.generate_master_from_input", fake_codex_master)
+
+    paths = generate_all_masters(
+        client=None,
+        workflows_dir=Path("/nonexistent"),
+        source_image=source,
+        prompt="walnut tabletop",
+        negative_prompt="cluttered",
+        ip_weight=60,
+        seed=42,
+        out_dir=out_dir,
+        image_stem="front",
+    )
+
+    assert set(paths.keys()) == {"1x1", "long", "3x4", "9x16", "16x9"}
+    for key, p in paths.items():
+        assert p.exists(), f"master {key} not written via codex"
+
+
+def test_generate_all_masters_via_comfyui_fallback_path(tmp_path, monkeypatch):
+    """Path A fallback: ComfyUI Flux + rembg + PIL composite."""
+    source = _make_source_photo(tmp_path)
     mock_client = _stub_comfy_client()
     workflows_dir = Path(__file__).parents[2] / "workflows"
     out_dir = tmp_path / "master"
 
+    # Path A path needs rembg cutout + composite — mock both to keep test fast/offline
+    def fake_cutout(src, dst):
+        Image.new("RGBA", (200, 300), (200, 50, 50, 255)).save(dst, "PNG")
+
+    def fake_composite(*, cutout_path, background_path, output_path, ratio_key):
+        Image.new("RGB", (1024, 1024), (200, 50, 50)).save(output_path, "JPEG", quality=92)
+        return output_path
+
+    monkeypatch.setattr("img2ec.core.master_gen.cutout_with_rembg", fake_cutout)
+    monkeypatch.setattr("img2ec.core.master_gen.composite_cutout_on_background", fake_composite)
+
     paths = generate_all_masters(
         client=mock_client,
         workflows_dir=workflows_dir,
-        cutout_path=cutout,
+        source_image=source,
         prompt="on marble",
         negative_prompt="cluttered",
         ip_weight=60,
@@ -62,43 +109,8 @@ def test_generate_all_masters_via_comfyui_path(tmp_path):
 
     assert set(paths.keys()) == {"1x1", "long", "3x4", "9x16", "16x9"}
     for key, p in paths.items():
-        assert p.exists(), f"master {key} not written"
-        with Image.open(p) as img:
-            assert img.mode == "RGB"
-            w, h = img.size
-            mid_x, mid_y = w // 2, h // 2
-            r, g, b = img.getpixel((mid_x, mid_y))
-            assert r > g and r > b, f"{key} center pixel not red-dominant: {(r,g,b)}"
+        assert p.exists()
     assert mock_client.submit_prompt.call_count == 5
-
-
-def test_generate_all_masters_via_codex_path(tmp_path, monkeypatch):
-    """Test the default Codex CLI backend (use_codex=True)."""
-    cutout = _make_rgba_cutout(tmp_path)
-    out_dir = tmp_path / "master"
-
-    # Mock generate_background_image to write a fake bg JPEG
-    def fake_codex_gen(*, prompt, ratio_key, output_path, **kw):
-        Image.new("RGB", (1024, 1024), (240, 230, 210)).save(output_path, "JPEG", quality=92)
-        return output_path
-
-    monkeypatch.setattr("img2ec.core.master_gen.generate_background_image", fake_codex_gen)
-
-    paths = generate_all_masters(
-        client=None,
-        workflows_dir=Path("/nonexistent"),
-        cutout_path=cutout,
-        prompt="on marble",
-        negative_prompt="cluttered",
-        ip_weight=60,
-        seed=42,
-        out_dir=out_dir,
-        image_stem="front",
-    )
-
-    assert set(paths.keys()) == {"1x1", "long", "3x4", "9x16", "16x9"}
-    for key, p in paths.items():
-        assert p.exists(), f"master {key} not written via codex"
 
 
 def test_generate_master_1x1_backward_compat(tmp_path):

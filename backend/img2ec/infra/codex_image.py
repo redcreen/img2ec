@@ -53,6 +53,55 @@ TARGET_DIMENSIONS: dict[str, tuple[int, int]] = {
 }
 
 
+def _run_codex_to_image(
+    *,
+    full_prompt: str,
+    input_image: Path | None,
+    target_dims: tuple[int, int],
+    output_path: Path,
+    timeout: int,
+    codex_bin: str,
+) -> Path:
+    """Shared subprocess machinery: run codex exec, find newest PNG, resize, save."""
+    before_ts = time.time()
+    cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
+    if input_image is not None:
+        cmd.extend(["-i", str(input_image)])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=full_prompt.encode("utf-8"),
+            capture_output=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise CodexImageError(f"codex exec timed out after {timeout}s") from e
+    except FileNotFoundError as e:
+        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
+
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
+        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+
+    if not CODEX_IMG_DIR.exists():
+        raise CodexImageError(f"codex images dir does not exist: {CODEX_IMG_DIR}")
+    candidates = [p for p in CODEX_IMG_DIR.rglob("*.png") if p.stat().st_mtime >= before_ts - 1]
+    if not candidates:
+        stdout_tail = proc.stdout.decode("utf-8", errors="replace")[-300:]
+        raise CodexImageError(f"no new image produced. stdout tail: {stdout_tail!r}")
+    newest = max(candidates, key=lambda p: p.stat().st_mtime)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(newest) as src:
+        rgb = src.convert("RGB")
+        if rgb.size != target_dims:
+            rgb = rgb.resize(target_dims, Image.LANCZOS)
+        rgb.save(output_path, "JPEG", quality=92)
+
+    return output_path
+
+
 def generate_background_image(
     *,
     prompt: str,
@@ -61,17 +110,9 @@ def generate_background_image(
     timeout: int = 240,
     codex_bin: str = "codex",
 ) -> Path:
-    """Generate a scene-only background image via Codex CLI.
+    """Generate a scene-only background image (商品 to be PIL-composited later).
 
-    Args:
-        prompt: scene description (positive). Will be wrapped to enforce "no product, no person".
-        ratio_key: one of MASTER keys: 1x1, long, 3x4, 9x16, 16x9
-        output_path: target file path (parent dir auto-created)
-        timeout: subprocess timeout
-        codex_bin: codex CLI binary name
-
-    Returns: output_path on success.
-    Raises: CodexImageError on any failure.
+    [Path A composite mode — fallback only. Path C 'codex_native' direct img2img is preferred.]
     """
     size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
@@ -84,39 +125,60 @@ def generate_background_image(
         f"Constraints: empty scene with NO product, NO person, NO logo, NO text, NO watermark — "
         f"just the background ready for product placement; high resolution; sharp realistic detail."
     )
+    return _run_codex_to_image(
+        full_prompt=full_prompt,
+        input_image=None,
+        target_dims=target_dims,
+        output_path=output_path,
+        timeout=timeout,
+        codex_bin=codex_bin,
+    )
 
-    before_ts = time.time()
-    try:
-        proc = subprocess.run(
-            [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"],
-            input=full_prompt.encode("utf-8"),
-            capture_output=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise CodexImageError(f"codex exec timed out after {timeout}s for {ratio_key}") from e
-    except FileNotFoundError as e:
-        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
 
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
-        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+def generate_master_from_input(
+    *,
+    source_image: Path,
+    scene_prompt: str,
+    ratio_key: str,
+    output_path: Path,
+    timeout: int = 300,
+    codex_bin: str = "codex",
+) -> Path:
+    """Path C — Codex 直接 image-to-image：商品 + 场景一步出图。
 
-    # Find newest PNG generated since `before_ts`
-    if not CODEX_IMG_DIR.exists():
-        raise CodexImageError(f"codex images dir does not exist: {CODEX_IMG_DIR}")
-    candidates = [p for p in CODEX_IMG_DIR.rglob("*.png") if p.stat().st_mtime >= before_ts - 1]
-    if not candidates:
-        stdout_tail = proc.stdout.decode("utf-8", errors="replace")[-300:]
-        raise CodexImageError(f"no new image produced. stdout tail: {stdout_tail!r}")
-    newest = max(candidates, key=lambda p: p.stat().st_mtime)
+    输入用户原图（含杂背景），Codex 自己识别商品，把它放到 scene_prompt 描述的新场景里，
+    保留商品所有细节同时生成自然光照、阴影、表面接触感。**不需要 rembg，不需要 PIL composite**。
 
-    # Copy + resize to target dimensions
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with Image.open(newest) as src:
-        rgb = src.convert("RGB")
-        if rgb.size != target_dims:
-            rgb = rgb.resize(target_dims, Image.LANCZOS)
-        rgb.save(output_path, "JPEG", quality=92)
+    Args:
+        source_image: 用户上传的原图（任意背景）
+        scene_prompt: 目标场景描述（如 "中式实木桌面"）
+        ratio_key: 1x1 / long / 3x4 / 9x16 / 16x9
+        output_path: 输出 master 文件路径
+    """
+    size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
+    target_dims = TARGET_DIMENSIONS.get(ratio_key)
+    if target_dims is None:
+        raise CodexImageError(f"unknown ratio_key: {ratio_key}")
 
-    return output_path
+    full_prompt = (
+        f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
+        f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
+        f"\n\nScene: {scene_prompt}\n\n"
+        f"Critical rules: "
+        f"(1) the product itself must remain visually identical to the input — same shape, "
+        f"same colors, same patterns, same materials, same orientation; "
+        f"(2) ONLY the surrounding scene/background changes; "
+        f"(3) match the lighting direction and color temperature between product and new scene "
+        f"(natural shadow under product, ambient color reflections, contact shadow); "
+        f"(4) place the product on a believable surface with natural perspective; "
+        f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
+        f"(6) output a single high-resolution {size_hint} photograph."
+    )
+    return _run_codex_to_image(
+        full_prompt=full_prompt,
+        input_image=source_image,
+        target_dims=target_dims,
+        output_path=output_path,
+        timeout=timeout,
+        codex_bin=codex_bin,
+    )

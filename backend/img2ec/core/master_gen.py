@@ -1,12 +1,11 @@
-"""Generate master images: AI scene background + composite商品 cutout.
+"""Generate master images: 5 ratios via Codex image-to-image.
 
-Path A architecture (Phase 2.1+): the AI generates only the scene background;
-the商品 itself is preserved 100% from the user's cutout via PIL paste.
+Path C architecture (default): Codex/gpt-image-1 takes the user's source photo +
+a scene description and outputs the商品 placed in the new scene with natural
+lighting, shadow, and material match. **No rembg, no PIL composite step.**
 
-V2 (Phase 2.7+): Codex CLI / gpt-image-1 replaces ComfyUI Flux for background gen.
-Significantly better visual quality (real marble texture, window caustics, sharp
-detail). Latency comparable. ComfyUI workflow files retained for fallback / future
-"stylized scene" mode but no longer the default.
+Path A (fallback for `use_codex=False`): ComfyUI Flux generates background only,
+PIL composites cutout on top. Kept for environments without Codex CLI.
 """
 from __future__ import annotations
 
@@ -14,7 +13,12 @@ import tempfile
 from pathlib import Path
 
 from img2ec.core.composite import composite_cutout_on_background
-from img2ec.infra.codex_image import CodexImageError, generate_background_image
+from img2ec.core.cutout import cutout_with_rembg
+from img2ec.infra.codex_image import (
+    CodexImageError,
+    generate_background_image,
+    generate_master_from_input,
+)
 from img2ec.infra.comfy_client import ComfyClient, ComfyError
 
 # Master key → workflow file name (under backend/workflows/)
@@ -68,45 +72,50 @@ def _generate_background(
 
 def generate_all_masters(
     *,
-    client: ComfyClient | None,  # ignored when use_codex=True (default)
-    workflows_dir: Path,         # ignored when use_codex=True
-    cutout_path: Path,
+    client: ComfyClient | None,
+    workflows_dir: Path,
+    source_image: Path,           # Path C: 源图直接喂 Codex
     prompt: str,
     negative_prompt: str,
-    ip_weight: int,              # accepted for backward-compat; unused in Path A
+    ip_weight: int,
     seed: int,
     out_dir: Path,
     image_stem: str,
     use_codex: bool = True,
     on_master_done: "callable | None" = None,
 ) -> dict[str, Path]:
-    """For each ratio: AI-generate background + PIL-composite商品 cutout on top.
-
-    Default backend: Codex CLI (gpt-image-1). Set use_codex=False to fall back to
-    ComfyUI Flux workflows in workflows_dir.
-
-    Returns: {master_key: master_path} dict for the 5 ratios.
-    """
-    del ip_weight, seed  # unused in Path A
+    """Codex 直接 image-to-image 出 5 张 master。Path A fallback：rembg + composite。"""
+    del ip_weight, seed  # unused
     out_dir.mkdir(parents=True, exist_ok=True)
-    bg_dir = Path(tempfile.gettempdir()) / f"img2ec_bg_{image_stem}"
-    bg_dir.mkdir(parents=True, exist_ok=True)
 
     paths: dict[str, Path] = {}
     items = list(MASTER_WORKFLOW_FILES.items())
     total = len(items)
+
+    # Path A 仍然要用 cutout，按需懒生成
+    cutout_path: Path | None = None
+
     for idx, (key, fname) in enumerate(items):
-        bg_path = bg_dir / f"{image_stem}-{key}-bg.jpg"
         master_path = out_dir / f"{image_stem}-{key}.jpg"
 
         if use_codex:
-            generate_background_image(
-                prompt=prompt,
+            # Path C：源图 + 场景 prompt → 一步出 master（含商品 + 场景 + 自然光照阴影）
+            generate_master_from_input(
+                source_image=source_image,
+                scene_prompt=prompt,
                 ratio_key=key,
-                output_path=bg_path,
+                output_path=master_path,
             )
         else:
+            # Path A fallback：抠图 + AI bg + PIL composite
             assert client is not None and workflows_dir is not None
+            if cutout_path is None:
+                cutout_path = source_image.parent.parent / "cutout" / f"{image_stem}.png"
+                cutout_path.parent.mkdir(parents=True, exist_ok=True)
+                cutout_with_rembg(source_image, cutout_path)
+            bg_dir = Path(tempfile.gettempdir()) / f"img2ec_bg_{image_stem}"
+            bg_dir.mkdir(parents=True, exist_ok=True)
+            bg_path = bg_dir / f"{image_stem}-{key}-bg.jpg"
             _generate_background(
                 client=client,
                 workflow_path=workflows_dir / fname,
@@ -115,13 +124,12 @@ def generate_all_masters(
                 seed=hash((image_stem, key)) & 0x7FFFFFFF,
                 output_path=bg_path,
             )
-
-        composite_cutout_on_background(
-            cutout_path=cutout_path,
-            background_path=bg_path,
-            output_path=master_path,
-            ratio_key=key,
-        )
+            composite_cutout_on_background(
+                cutout_path=cutout_path,
+                background_path=bg_path,
+                output_path=master_path,
+                ratio_key=key,
+            )
 
         paths[key] = master_path
         if on_master_done is not None:

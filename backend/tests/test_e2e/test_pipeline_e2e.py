@@ -34,7 +34,8 @@ def test_e2e_pipeline_with_white_bg(tmp_path, fixtures_dir, mock_comfy):
     assert len(masters) == 5
 
 
-def test_e2e_pipeline_with_photo_bg_runs_cutout(tmp_path, fixtures_dir, mock_comfy):
+def test_e2e_pipeline_path_c_no_cutout_dir(tmp_path, fixtures_dir, mock_comfy):
+    """Path C 不再做 rembg 抠图，cutout/ 目录不应被创建。"""
     sku_d = tmp_path / "sku"
     sku_d.mkdir()
 
@@ -50,8 +51,9 @@ def test_e2e_pipeline_with_photo_bg_runs_cutout(tmp_path, fixtures_dir, mock_com
         workflows_dir=Path("workflows"),
     )
 
-    # cutout/ 目录下应有抠图结果
-    assert (sku_d / "cutout" / "side.png").exists()
-    # 总共 15 张派生
+    # Path C: 跳过 rembg，cutout 目录不应该存在/为空
+    cutout_d = sku_d / "cutout"
+    assert not cutout_d.exists() or not list(cutout_d.glob("*"))
+    # 5 master + 15 派生 仍然出
     total = sum(len(paths) for paths in derived.values())
     assert total == 15
