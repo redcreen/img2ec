@@ -46,3 +46,15 @@ export interface SKU {
   created_at: string;
   updated_at: string;
 }
+
+export interface PlatformCopy {
+  id: string;
+  platform: "douyin" | "shipinhao" | "xiaohongshu";
+  title: string;
+  subtitle: string;
+  selling_points: string[];
+  description_md: string;
+  category_path: string;
+  keywords: string[];
+  hashtags: string[];
+}
