@@ -6,6 +6,7 @@ import { PathBar } from "@/components/PathBar";
 import { StatusPill } from "@/components/StatusPill";
 import { MasterGallery } from "@/components/MasterGallery";
 import { DerivedTable } from "@/components/DerivedTable";
+import { BizFieldsTabs } from "@/components/BizFieldsTabs";
 
 export default function SkuDetailPage() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
@@ -73,6 +74,7 @@ export default function SkuDetailPage() {
             <div className="mt-6 space-y-4">
               <MasterGallery images={sku.images} />
               <DerivedTable images={sku.images} />
+              <BizFieldsTabs skuId={sid} />
             </div>
           )}
         </div>
