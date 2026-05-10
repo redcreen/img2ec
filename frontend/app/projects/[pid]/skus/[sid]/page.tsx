@@ -7,6 +7,8 @@ import { StatusPill } from "@/components/StatusPill";
 import { MasterGallery } from "@/components/MasterGallery";
 import { DerivedTable } from "@/components/DerivedTable";
 import { BizFieldsTabs } from "@/components/BizFieldsTabs";
+import { RatioSelector } from "@/components/RatioSelector";
+import { PromptPreview } from "@/components/PromptPreview";
 
 export default function SkuDetailPage() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
@@ -24,7 +26,7 @@ export default function SkuDetailPage() {
   const scene = scenes?.find(s => s.id === sku.scene_id);
   const skuPath = project ? `${project.root_path}/${sku.name}` : "";
 
-  const onProcess = async () => { await api.processSku(pid, sid); mutate(); };
+  const onProcess = async (ratios?: string[]) => { await api.processSku(pid, sid, ratios); mutate(); };
   const onCancel = async () => {
     if (!confirm("停止处理？已生成的图会保留，未生成的不再继续。")) return;
     try {
@@ -78,14 +80,26 @@ export default function SkuDetailPage() {
           <strong className="text-base">{sku.name}</strong>
           <StatusPill status={sku.status} />
           <div className="flex-1" />
-          {sku.status === "ready" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 开始处理</button>}
           {sku.status === "running" && <button onClick={onCancel} className="px-3 py-2 text-sm border border-amber-500 text-amber-300 rounded font-semibold hover:bg-amber-500/20">⏹ 停止</button>}
           {sku.status === "done" && <a href={api.downloadSku(sku.id)} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">⬇ 一键下载 zip</a>}
-          {sku.status === "error" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 重试失败项</button>}
-          {sku.status === "cancelled" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 继续处理</button>}
           <button onClick={onDelete} className="text-red-400 border border-red-400 rounded px-2 py-1 text-xs">删除</button>
         </div>
         <PathBar path={skuPath} label="SKU 目录" />
+
+        {/* Ratio 选择器：决定生成哪些尺寸（也支持继续生成） */}
+        {sku.images.length > 0 && sku.status !== "running" && (() => {
+          const firstImg = sku.images[0];
+          const existingRatios = Object.keys(firstImg.master_urls || {});
+          return (
+            <RatioSelector
+              existingRatios={existingRatios}
+              busy={false}
+              onTrigger={(ratios) => onProcess(ratios)}
+            />
+          );
+        })()}
+
+        <PromptPreview pid={pid} sid={sid} />
 
         {(sku.status === "running" || sku.status === "ready") && totalImages > 0 && (
           <div className="mt-3">

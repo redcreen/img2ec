@@ -41,8 +41,15 @@ export const api = {
   },
   deleteImage: (pid: string, sid: string, iid: string) =>
     req<void>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, { method: "DELETE" }),
-  processSku: (pid: string, sid: string) =>
-    req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process`, { method: "POST" }),
+  processSku: (pid: string, sid: string, ratios?: string[]) =>
+    req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process`, {
+      method: "POST",
+      body: ratios ? JSON.stringify({ ratios }) : undefined,
+    }),
+  previewPrompt: (pid: string, sid: string) =>
+    req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(
+      `/api/projects/${pid}/skus/${sid}/preview-prompt`
+    ),
   cancelSku: (pid: string, sid: string) =>
     req<{ ok: boolean }>(`/api/projects/${pid}/skus/${sid}/cancel`, { method: "POST" }),
   deleteSku: (pid: string, sid: string) => req<void>(`/api/projects/${pid}/skus/${sid}`, { method: "DELETE" }),

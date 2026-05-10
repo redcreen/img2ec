@@ -182,25 +182,11 @@ def generate_master_from_input(
         ratio_key: 1x1 / long / 3x4 / 9x16 / 16x9
         output_path: 输出 master 文件路径
     """
-    size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
     if target_dims is None:
         raise CodexImageError(f"unknown ratio_key: {ratio_key}")
 
-    full_prompt = (
-        f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
-        f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
-        f"\n\nScene: {scene_prompt}\n\n"
-        f"Critical rules: "
-        f"(1) the product itself must remain visually identical to the input — same shape, "
-        f"same colors, same patterns, same materials, same orientation; "
-        f"(2) ONLY the surrounding scene/background changes; "
-        f"(3) match the lighting direction and color temperature between product and new scene "
-        f"(natural shadow under product, ambient color reflections, contact shadow); "
-        f"(4) place the product on a believable surface with natural perspective; "
-        f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
-        f"(6) output a single high-resolution {size_hint} photograph."
-    )
+    full_prompt = build_master_prompt(scene_prompt=scene_prompt, ratio_key=ratio_key)
     return _run_codex_to_image(
         full_prompt=full_prompt,
         input_image=source_image,
@@ -208,4 +194,23 @@ def generate_master_from_input(
         output_path=output_path,
         timeout=timeout,
         codex_bin=codex_bin,
+    )
+
+
+def build_master_prompt(*, scene_prompt: str, ratio_key: str) -> str:
+    """组装传给 Codex 的完整 prompt（前端 preview 用同一个函数）。"""
+    size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
+    return (
+        f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
+        f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
+        f"\n\nScene: {scene_prompt}\n\n"
+        f"Critical rules: "
+        f"(1) the product itself must remain visually identical to the input — same shape, "
+        f"same colors, same patterns, same orientation, same materials; "
+        f"(2) ONLY the surrounding scene/background changes; "
+        f"(3) match the lighting direction and color temperature between product and new scene "
+        f"(natural shadow under product, ambient color reflections, contact shadow); "
+        f"(4) place the product on a believable surface with natural perspective; "
+        f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
+        f"(6) output a single high-resolution {size_hint} photograph."
     )

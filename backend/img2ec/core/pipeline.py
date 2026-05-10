@@ -30,6 +30,7 @@ def process_one_image(
     workflows_dir: Path,
     on_progress: ProgressCb | None = None,
     on_master_done: MasterDoneCb | None = None,
+    ratios: "list[str] | None" = None,
 ) -> dict[str, list[Path]]:
     """跑完返回派生输出 {platform: [paths]} 字典。"""
     cb: ProgressCb = on_progress or (lambda _s, _p: None)
@@ -55,6 +56,7 @@ def process_one_image(
         out_dir=master_out,
         image_stem=image_stem,
         on_master_done=_on_master_done,
+        ratios=ratios,
     )
 
     # Pillow 派生 15 个平台尺寸（裁剪/缩放）

@@ -84,7 +84,8 @@ def derive_all_for_image(
         for item in items:
             master_key = item["from"]
             if master_key not in master_paths:
-                raise ValueError(f"missing master '{master_key}' for {platform}/{item['name']}")
+                # selective 生成模式下部分 ratio 没生 master — 跳过对应平台输出，不报错
+                continue
             with Image.open(master_paths[master_key]) as src:
                 src_rgb = src.convert("RGB")
                 derived = _resize_to(src_rgb, item["size"], master_key)

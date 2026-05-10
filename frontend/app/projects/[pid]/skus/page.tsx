@@ -36,9 +36,7 @@ export default function SkusPage() {
         <NewSkuModal pid={pid} scenes={scenes}
           onClose={() => setShowNew(false)}
           onCreated={(sid) => {
-            // Fire-and-forget: navigate immediately so the detail page can show progress;
-            // processSku is sync in eager mode (~5 min) but we don't block the UI on it.
-            api.processSku(pid, sid).catch((e) => console.error("processSku failed:", e));
+            // 不自动触发处理 — 用户进入详情页用 RatioSelector 自选要生成哪些尺寸再开始。
             mutate();
             router.push(`/projects/${pid}/skus/${sid}`);
           }} />

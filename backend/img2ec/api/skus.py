@@ -2,6 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from img2ec.config import get_settings
@@ -119,31 +120,85 @@ def delete_image(project_id: str, sku_id: str, image_id: str, db: Session = Depe
     db.commit()
 
 
+VALID_RATIOS = {"1x1", "long", "3x4", "9x16", "16x9"}
+ORDERED_RATIOS = ["1x1", "long", "3x4", "9x16", "16x9"]
+
+
+@router.get("/{sku_id}/preview-prompt")
+def preview_prompt(project_id: str, sku_id: str, db: Session = Depends(get_session)) -> dict:
+    """返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。"""
+    from img2ec.infra.codex_image import build_master_prompt
+    from img2ec.models import Scene
+
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    scene = db.get(Scene, sku.scene_id) if sku.scene_id else None
+    if scene is None:
+        raise HTTPException(400, "no scene assigned")
+
+    return {
+        "scene_name": scene.name,
+        "scene_prompt": scene.prompt,
+        "negative_prompt": scene.negative_prompt,
+        "per_ratio": {
+            r: build_master_prompt(scene_prompt=scene.prompt, ratio_key=r)
+            for r in ORDERED_RATIOS
+        },
+    }
+
+
+class ProcessRequest(BaseModel):
+    ratios: list[str] | None = None  # None=全部 5 个；指定 ⊂ {"1x1","long","3x4","9x16","16x9"}
+
+
 @router.post("/{sku_id}/process", status_code=202)
-def process_sku(project_id: str, sku_id: str, db: Session = Depends(get_session)) -> dict:
+def process_sku(
+    project_id: str, sku_id: str,
+    payload: ProcessRequest | None = None,
+    db: Session = Depends(get_session),
+) -> dict:
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
     if sku.scene_id is None:
         raise HTTPException(400, "no scene assigned")
 
-    targets = [i for i in sku.images if i.status in (ImageStatus.PENDING.value, ImageStatus.FAILED.value)]
-    if not targets:
-        raise HTTPException(400, "no pending or failed images")
+    ratios = payload.ratios if payload else None
+    if ratios is not None:
+        invalid = set(ratios) - VALID_RATIOS
+        if invalid:
+            raise HTTPException(400, f"invalid ratios: {sorted(invalid)}")
+        if not ratios:
+            raise HTTPException(400, "ratios cannot be empty list (omit field for all 5)")
 
-    # 重新开始处理时清掉 cancelled 标记
+    # 增量生成：选定 ratio 但已存在 master 的不再重生（用户主动想重生 → 先删）
+    targets: list[SourceImage] = []
+    for img in sku.images:
+        existing = set((img.master_paths or {}).keys())
+        wanted = set(ratios) if ratios else VALID_RATIOS
+        missing = wanted - existing
+        if missing or img.status in (ImageStatus.PENDING.value, ImageStatus.FAILED.value):
+            targets.append(img)
+
+    if not targets:
+        raise HTTPException(400, "selected ratios are all already generated; pick missing ones")
+
     sku.status = SKUStatus.RUNNING.value
     for img in targets:
         img.status = ImageStatus.PENDING.value
         img.err_msg = None
     db.commit()
 
-    # 派发 Celery 任务
     from img2ec.tasks.pipeline_tasks import process_image_task
     for img in targets:
-        process_image_task.delay(img.id)
+        # Pass per-image missing ratios to avoid re-running already-generated ones
+        existing = set((img.master_paths or {}).keys())
+        wanted = set(ratios) if ratios else VALID_RATIOS
+        per_img_ratios = sorted(wanted - existing) or sorted(wanted)
+        process_image_task.delay(img.id, per_img_ratios)
 
-    return {"queued": len(targets)}
+    return {"queued": len(targets), "ratios": ratios}
 
 
 @router.post("/{sku_id}/cancel", status_code=200)

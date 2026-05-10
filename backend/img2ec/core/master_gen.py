@@ -74,7 +74,7 @@ def generate_all_masters(
     *,
     client: ComfyClient | None,
     workflows_dir: Path,
-    source_image: Path,           # Path C: 源图直接喂 Codex
+    source_image: Path,
     prompt: str,
     negative_prompt: str,
     ip_weight: int,
@@ -83,13 +83,18 @@ def generate_all_masters(
     image_stem: str,
     use_codex: bool = True,
     on_master_done: "callable | None" = None,
+    ratios: "list[str] | None" = None,
 ) -> dict[str, Path]:
-    """Codex 直接 image-to-image 出 5 张 master。Path A fallback：rembg + composite。"""
+    """Codex image-to-image 出 master。`ratios` 限定生成哪些尺寸（None=全部 5 张）。"""
     del ip_weight, seed  # unused
     out_dir.mkdir(parents=True, exist_ok=True)
 
     paths: dict[str, Path] = {}
-    items = list(MASTER_WORKFLOW_FILES.items())
+    all_items = list(MASTER_WORKFLOW_FILES.items())
+    if ratios is not None:
+        items = [(k, v) for k, v in all_items if k in set(ratios)]
+    else:
+        items = all_items
     total = len(items)
 
     # Path A 仍然要用 cutout，按需懒生成

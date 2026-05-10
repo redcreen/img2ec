@@ -19,7 +19,7 @@ class CancelRequested(Exception):
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
-def process_image_task(self, image_id: str) -> str:
+def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> str:
     settings = get_settings()
     db = SessionLocal()
     try:
@@ -71,24 +71,21 @@ def process_image_task(self, image_id: str) -> str:
                 scene_prompt=scene.prompt,
                 scene_neg=scene.negative_prompt,
                 ip_weight=scene.ip_adapter_weight,
-                # 每张图随机 seed，避免 ComfyUI 对相同输入返回 cached 结果（cached
-                # outputs 字段为空会让 master_gen 报 "no output images"）。
                 seed=random.randint(1, 2**31 - 1),
                 comfy_client=client,
                 workflows_dir=WORKFLOWS_DIR,
                 on_progress=update_progress,
                 on_master_done=on_master_done,
+                ratios=ratios,
             )
-            # derived 现在是 {platform: [paths]} 而不是 {platform: path}
-            img.derived_paths = {
+            # 派生：合并新生成的 paths 到已有的（partial generation 累加）
+            new_derived = {
                 f"{plat}/{p.name}": str(p)
                 for plat, paths in derived.items()
                 for p in paths
             }
-            img.master_paths = {
-                key: str(skud / "master" / f"{Path(img.name).stem}-{key}.jpg")
-                for key in ("1x1", "long", "3x4", "9x16", "16x9")
-            }
+            img.derived_paths = {**(img.derived_paths or {}), **new_derived}
+            # master_paths 已通过 on_master_done 增量写入；此处不再覆盖
             img.status = ImageStatus.DONE.value
             img.progress = 100
             db.commit()
