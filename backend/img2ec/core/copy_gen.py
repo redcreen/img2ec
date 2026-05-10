@@ -42,8 +42,9 @@ COPY_OUTPUT_SCHEMA: dict = {
                 "description_md": {"type": "string"},
                 "category_path": {"type": "string"},
                 "keywords": {"type": "array", "items": {"type": "string"}, "minItems": 5, "maxItems": 10},
+                "video_script": {"type": "string"},
             },
-            "required": ["title", "subtitle", "selling_points", "description_md", "category_path", "keywords"],
+            "required": ["title", "subtitle", "selling_points", "description_md", "category_path", "keywords", "video_script"],
             "additionalProperties": False,
         },
         "platform_xhs": {
@@ -53,8 +54,9 @@ COPY_OUTPUT_SCHEMA: dict = {
                 "post_body": {"type": "string"},
                 "selling_points": {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 5},
                 "hashtags": {"type": "array", "items": {"type": "string"}, "minItems": 5, "maxItems": 10},
+                "video_script": {"type": "string"},
             },
-            "required": ["post_title", "post_body", "selling_points", "hashtags"],
+            "required": ["post_title", "post_body", "selling_points", "hashtags", "video_script"],
             "additionalProperties": False,
         },
     },
@@ -76,6 +78,8 @@ def _build_prompt(*, sku_name: str, scene_name: str, scene_category: str) -> str
 2. douyin（抖店）：title ≤ {TITLE_LIMITS['douyin']} 字，subtitle，3-5 卖点，详情 markdown，category_path，5-10 keywords
 3. shipinhao（视频号）：title ≤ {TITLE_LIMITS['shipinhao']} 字，其它同抖店
 4. xiaohongshu（小红书）：post_title ≤ {TITLE_LIMITS['xiaohongshu']} 字（笔记标题），post_body 笔记正文，3-5 卖点，5-10 hashtags（带 # 号）
+
+视频脚本（30s 短视频）：所有 3 平台均生成一份 80-150 字脚本，结构：抓眼球开头 → 核心卖点 2-3 条 → 行动号召。中文口语化。
 
 风格要求：
 - 抖店/视频号偏卖货导向，强调卖点和性价比

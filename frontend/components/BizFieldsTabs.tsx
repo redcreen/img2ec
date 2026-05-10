@@ -111,6 +111,7 @@ export function BizFieldsTabs({ skuId }: { skuId: string }) {
           {copy.description_md && (
             <FieldRow label={active === "xiaohongshu" ? "笔记正文" : "详情段落"} value={copy.description_md} />
           )}
+          {copy.video_script && <FieldRow label="30s 视频脚本" value={copy.video_script} />}
           {copy.category_path && <FieldRow label="推荐类目" value={copy.category_path} />}
           {copy.keywords?.length > 0 && <ListField label="关键词" items={copy.keywords} />}
           {copy.hashtags?.length > 0 && <ListField label="Hashtags" items={copy.hashtags} />}

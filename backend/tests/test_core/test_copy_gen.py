@@ -18,6 +18,16 @@ def test_schema_xhs_has_hashtags_not_keywords():
     assert "keywords" not in xhs["properties"]
 
 
+def test_schema_has_video_script():
+    platform_full = COPY_OUTPUT_SCHEMA["$defs"]["platform_full"]
+    assert "video_script" in platform_full["properties"]
+    assert "video_script" in platform_full["required"]
+
+    platform_xhs = COPY_OUTPUT_SCHEMA["$defs"]["platform_xhs"]
+    assert "video_script" in platform_xhs["properties"]
+    assert "video_script" in platform_xhs["required"]
+
+
 def test_generate_copy_calls_provider_with_image(tmp_path):
     img = tmp_path / "test.jpg"
     img.write_bytes(b"x")
@@ -25,9 +35,9 @@ def test_generate_copy_calls_provider_with_image(tmp_path):
     provider = MagicMock()
     provider.generate_structured.return_value = {
         "vlm": {"category": "家居/工艺品", "appearance": "x", "key_features": ["a", "b", "c"]},
-        "douyin": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"], "description_md": "d", "category_path": "x", "keywords": ["k1","k2","k3","k4","k5"]},
-        "shipinhao": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"], "description_md": "d", "category_path": "x", "keywords": ["k1","k2","k3","k4","k5"]},
-        "xiaohongshu": {"post_title": "p", "post_body": "b", "selling_points": ["1","2","3"], "hashtags": ["#a","#b","#c","#d","#e"]},
+        "douyin": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"], "description_md": "d", "category_path": "x", "keywords": ["k1","k2","k3","k4","k5"], "video_script": "v"},
+        "shipinhao": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"], "description_md": "d", "category_path": "x", "keywords": ["k1","k2","k3","k4","k5"], "video_script": "v"},
+        "xiaohongshu": {"post_title": "p", "post_body": "b", "selling_points": ["1","2","3"], "hashtags": ["#a","#b","#c","#d","#e"], "video_script": "v"},
     }
 
     result = generate_copy_for_sku(

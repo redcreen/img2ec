@@ -41,11 +41,13 @@ def test_regenerate_creates_3_copies(mock_gen, cli, app_with_db):
     mock_gen.return_value = {
         "vlm": {"category": "x", "appearance": "y", "key_features": ["a","b","c"]},
         "douyin": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"],
-                   "description_md": "d", "category_path": "c", "keywords": ["k1","k2","k3","k4","k5"]},
+                   "description_md": "d", "category_path": "c", "keywords": ["k1","k2","k3","k4","k5"],
+                   "video_script": "v"},
         "shipinhao": {"title": "t", "subtitle": "s", "selling_points": ["1","2","3"],
-                      "description_md": "d", "category_path": "c", "keywords": ["k1","k2","k3","k4","k5"]},
+                      "description_md": "d", "category_path": "c", "keywords": ["k1","k2","k3","k4","k5"],
+                      "video_script": "v"},
         "xiaohongshu": {"post_title": "pt", "post_body": "pb", "selling_points": ["1","2","3"],
-                        "hashtags": ["#a","#b","#c","#d","#e"]},
+                        "hashtags": ["#a","#b","#c","#d","#e"], "video_script": "v"},
     }
     _, _, sku_id = _setup_done_sku(cli, app_with_db)
     r = cli.post(f"/api/skus/{sku_id}/copy/regenerate")

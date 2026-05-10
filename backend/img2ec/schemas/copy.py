@@ -12,6 +12,7 @@ class CopyOut(BaseModel):
     category_path: str
     keywords: list[str]
     hashtags: list[str]
+    video_script: str = ""
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

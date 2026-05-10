@@ -148,6 +148,7 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
             description_md=d.get("description_md", ""),
             category_path=d.get("category_path", ""),
             keywords=d.get("keywords", []), hashtags=[],
+            video_script=d.get("video_script", ""),
             raw_response=d,
         ))
     xhs = result.get("xiaohongshu", {})
@@ -157,6 +158,7 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
         selling_points=xhs.get("selling_points", []),
         description_md=xhs.get("post_body", ""),
         category_path="", keywords=[], hashtags=xhs.get("hashtags", []),
+        video_script=xhs.get("video_script", ""),
         raw_response=xhs,
     ))
     db.commit()

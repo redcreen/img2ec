@@ -25,6 +25,7 @@ class PlatformOutputCopy(Base, TimestampMixin):
     category_path: Mapped[str] = mapped_column(String(200), default="")
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     hashtags: Mapped[list] = mapped_column(JSON, default=list)
+    video_script: Mapped[str] = mapped_column(Text, default="")
     raw_response: Mapped[dict] = mapped_column(JSON, default=dict)  # 全量原始响应留 debug
 
     sku = relationship("SKU")
