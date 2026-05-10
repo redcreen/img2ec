@@ -1,0 +1,182 @@
+{
+  "_doc": "Phase 2: 3:4 vertical cover master. Cloned from generate_master_1x1.json with EmptyFlux2LatentImage set to 1800×2400 (Flux2 latent halves to actual 900 × 1200 (3:4 vertical cover)).",
+  "_inputs_doc": {
+    "CUTOUT": "ComfyUI-uploaded cutout filename (transparent商品 PNG)",
+    "PROMPT": "Positive prompt — scene description",
+    "NEG": "Negative prompt",
+    "IP_WEIGHT": "IPAdapter weight 0.0-1.0 (master_gen passes ip_weight/100 → 60 becomes 0.6)",
+    "SEED": "Integer random seed"
+  },
+  "1": {
+    "inputs": {
+      "ckpt_name": "flux1-dev-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Flux1-Dev-FP8"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "Load Dual CLIP"
+    }
+  },
+  "3": {
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "clip_l": "__PROMPT__",
+      "t5xxl": "__PROMPT__",
+      "guidance": 3.5
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "4": {
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "clip_l": "__NEG__",
+      "t5xxl": "__NEG__",
+      "guidance": 3.5
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "5": {
+    "inputs": {
+      "image": "__CUTOUT__"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Product Cutout"
+    }
+  },
+  "6": {
+    "inputs": {
+      "ipadapter": "flux-ip-adapter-instantx.bin",
+      "clip_vision": "google/siglip-so400m-patch14-384",
+      "provider": "cuda"
+    },
+    "class_type": "IPAdapterFluxLoader",
+    "_meta": {
+      "title": "Load IPAdapter Flux"
+    }
+  },
+  "7": {
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "ipadapter_flux": [
+        "6",
+        0
+      ],
+      "image": [
+        "5",
+        0
+      ],
+      "weight": "__IP_WEIGHT__",
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    },
+    "class_type": "ApplyIPAdapterFlux",
+    "_meta": {
+      "title": "Apply IPAdapter Flux"
+    }
+  },
+  "8": {
+    "inputs": {
+      "width": 1800,
+      "height": 2400,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Latent (1800×2400)"
+    }
+  },
+  "9": {
+    "inputs": {
+      "vae_name": "taef1"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "10": {
+    "inputs": {
+      "model": [
+        "7",
+        0
+      ],
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "8",
+        0
+      ],
+      "seed": "__SEED__",
+      "steps": 20,
+      "cfg": 7.5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "11": {
+    "inputs": {
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "12": {
+    "inputs": {
+      "images": [
+        "11",
+        0
+      ],
+      "filename_prefix": "img2ec_master_3x4"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image (3x4)"
+    }
+  }
+}
