@@ -33,23 +33,50 @@ class CodexImageError(RuntimeError):
     pass
 
 
-# Codex/gpt-image-1 supports these size hints natively; we map our 5 master keys to them.
-# The actual generated image will be resized to TARGET_DIMENSIONS for consistency with derive.py.
+def _fit_to_target(img: Image.Image, target: tuple[int, int]) -> Image.Image:
+    """Center-crop image to target aspect ratio, then resize.
+
+    Preserves the商品 aspect — never stretches/squishes. Drops some pixels at
+    the edges if input aspect doesn't match target.
+    """
+    target_w, target_h = target
+    src_w, src_h = img.size
+    target_ratio = target_w / target_h
+    src_ratio = src_w / src_h
+    if abs(src_ratio - target_ratio) < 0.01:
+        return img.resize(target, Image.LANCZOS)
+    if src_ratio > target_ratio:
+        # source 太宽，裁两边
+        new_w = int(src_h * target_ratio)
+        left = (src_w - new_w) // 2
+        cropped = img.crop((left, 0, left + new_w, src_h))
+    else:
+        # source 太高，裁上下
+        new_h = int(src_w / target_ratio)
+        top = (src_h - new_h) // 2
+        cropped = img.crop((0, top, src_w, top + new_h))
+    return cropped.resize(target, Image.LANCZOS)
+
+
+# Codex/gpt-image-1 supported native sizes — we ask in these so output isn't squished.
+# Master TARGET_DIMENSIONS must match (or be very close to) Codex native to avoid
+# heavy crop. derive.py 派生时会按平台需求 crop/resize 出最终 750×N、1080×1920 等。
 _PROMPT_SIZE_HINT: dict[str, str] = {
     "1x1":  "1024x1024",
-    "long": "1024x1792",
+    "long": "1024x1536",  # Codex 实际最常返回这个 portrait
     "3x4":  "1024x1536",
     "9x16": "1024x1792",
     "16x9": "1792x1024",
 }
 
-# Final dimensions we want each master at (matches existing master_gen behaviour).
+# Master 输出原生 = Codex 自然出图尺寸；不再硬塞到 750x2000 这种它不会出的形状。
+# derive.py 后续 crop+resize 到平台需求（750w 长图、1080×1920 等）。
 TARGET_DIMENSIONS: dict[str, tuple[int, int]] = {
     "1x1":  (1024, 1024),
-    "long": (750, 2000),
-    "3x4":  (900, 1200),
-    "9x16": (1080, 1920),
-    "16x9": (1920, 1080),
+    "long": (1024, 1536),
+    "3x4":  (1024, 1536),
+    "9x16": (1024, 1792),
+    "16x9": (1792, 1024),
 }
 
 
@@ -96,7 +123,7 @@ def _run_codex_to_image(
     with Image.open(newest) as src:
         rgb = src.convert("RGB")
         if rgb.size != target_dims:
-            rgb = rgb.resize(target_dims, Image.LANCZOS)
+            rgb = _fit_to_target(rgb, target_dims)
         rgb.save(output_path, "JPEG", quality=92)
 
     return output_path
