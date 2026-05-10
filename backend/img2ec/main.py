@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from img2ec.config import get_settings
 
@@ -27,6 +28,9 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    # Mount static files for detail-page templates and other project assets
+    app.mount("/static/projects", StaticFiles(directory=str(settings.root_path.parent)), name="projects")
 
     return app
 

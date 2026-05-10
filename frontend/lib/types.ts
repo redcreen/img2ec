@@ -58,4 +58,5 @@ export interface PlatformCopy {
   keywords: string[];
   hashtags: string[];
   video_script: string;
+  detail_template_url: string | null;
 }
