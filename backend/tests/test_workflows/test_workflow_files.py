@@ -24,19 +24,25 @@ def test_workflow_is_valid_json(name):
 
 @pytest.mark.parametrize("name", EXPECTED_FILES)
 def test_workflow_has_required_placeholders(name):
+    """Path A workflows are background-only — no cutout/IPAdapter placeholders."""
     raw = (WORKFLOW_DIR / name).read_text()
-    for token in ("__PROMPT__", "__NEG__", "__SEED__", "__CUTOUT__", "__IP_WEIGHT__"):
+    for token in ("__PROMPT__", "__NEG__", "__SEED__"):
         assert token in raw, f"workflow {name} missing {token}"
 
 
 @pytest.mark.parametrize("name", EXPECTED_FILES)
-def test_workflow_has_ipadapter_nodes(name):
-    """Every workflow uses IPAdapter Flux for 商品 injection."""
+def test_workflow_is_background_only(name):
+    """Path A: AI generates only the background; 商品 is composited via PIL.
+    Workflows must NOT include IPAdapter or LoadImage nodes."""
     data = json.loads((WORKFLOW_DIR / name).read_text())
-    class_types = {node.get("class_type") for nid, node in data.items() if not nid.startswith("_")}
-    assert "IPAdapterFluxLoader" in class_types
-    assert "ApplyIPAdapterFlux" in class_types
-    assert "LoadImage" in class_types
+    class_types = {node.get("class_type") for nid, node in data.items() if not nid.startswith("_") and isinstance(node, dict)}
+    assert "IPAdapterFluxLoader" not in class_types
+    assert "ApplyIPAdapterFlux" not in class_types
+    assert "LoadImage" not in class_types
+    # Required core nodes
+    assert "CheckpointLoaderSimple" in class_types
+    assert "KSampler" in class_types
+    assert "SaveImage" in class_types
 
 
 def test_5_workflows_have_distinct_filename_prefixes():

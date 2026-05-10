@@ -1,10 +1,8 @@
 {
-  "_doc": "Phase 1.5: Flux dev FP8 + IPAdapter Flux 1024x1024. 商品 cutout via IPAdapter injects visual identity into the scene. Tested 2026-05-10 after siglip clip_vision processor was rsynced from mac to gpu box (gpu box can't access HF Hub). IPAdapterFluxLoader loads siglip locally from models/clip_vision/siglip-so400m-patch14-384/.",
+  "_doc": "Phase 1.5: Flux dev FP8 + background-only (Path A composite) Flux 1024x1024. 商品 cutout via background-only (Path A composite) injects visual identity into the scene. Tested 2026-05-10 after siglip clip_vision processor was rsynced from mac to gpu box (gpu box can't access HF Hub). background-only (Path A composite)FluxLoader loads siglip locally from models/clip_vision/siglip-so400m-patch14-384/.",
   "_inputs_doc": {
-    "CUTOUT": "ComfyUI-uploaded cutout filename (transparent商品 PNG)",
     "PROMPT": "Positive prompt — scene description",
     "NEG": "Negative prompt",
-    "IP_WEIGHT": "IPAdapter weight 0.0-1.0 (master_gen passes ip_weight/100 → 60 becomes 0.6)",
     "SEED": "Integer random seed"
   },
   "1": {
@@ -57,49 +55,6 @@
       "title": "Negative Prompt"
     }
   },
-  "5": {
-    "inputs": {
-      "image": "__CUTOUT__"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Product Cutout"
-    }
-  },
-  "6": {
-    "inputs": {
-      "ipadapter": "flux-ip-adapter-instantx.bin",
-      "clip_vision": "google/siglip-so400m-patch14-384",
-      "provider": "cuda"
-    },
-    "class_type": "IPAdapterFluxLoader",
-    "_meta": {
-      "title": "Load IPAdapter Flux"
-    }
-  },
-  "7": {
-    "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "ipadapter_flux": [
-        "6",
-        0
-      ],
-      "image": [
-        "5",
-        0
-      ],
-      "weight": "__IP_WEIGHT__",
-      "start_percent": 0.0,
-      "end_percent": 1.0
-    },
-    "class_type": "ApplyIPAdapterFlux",
-    "_meta": {
-      "title": "Apply IPAdapter Flux"
-    }
-  },
   "8": {
     "inputs": {
       "width": 1024,
@@ -123,7 +78,7 @@
   "10": {
     "inputs": {
       "model": [
-        "7",
+        "1",
         0
       ],
       "positive": [
