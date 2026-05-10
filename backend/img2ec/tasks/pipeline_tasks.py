@@ -103,6 +103,10 @@ def process_image_task(self, image_id: str) -> str:
                         )
                         # Persist
                         _persist_copy(db, sku.id, result)
+                        # Phase 2.6: 详情页拼图生成
+                        _render_detail_pages(
+                            db, sku.id, skud, Path(img.name).stem, img.master_paths or {}
+                        )
                     except LLMProviderError as e:
                         # 文案失败不阻塞图片输出
                         # TODO: 记录到 SKU 上一个 warning 字段（V1.1）
@@ -156,3 +160,42 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
         raw_response=xhs,
     ))
     db.commit()
+
+
+def _render_detail_pages(db, sku_id: str, sku_dir: Path, image_stem: str, master_paths: dict) -> None:
+    """生成 3 平台的详情页拼图并存到 outputs/<platform>/<stem>-detail-template.jpg"""
+    from img2ec.core.detail_page import render_detail_page
+    from img2ec.core.detail_template import DEFAULT_TEMPLATE
+    from img2ec.infra.fs_layout import platform_dir as platform_dir_fn
+    from img2ec.infra.fs_layout import outputs_dir as outputs_dir_fn
+    from img2ec.models import PlatformOutputCopy
+
+    images = {k: Path(v) for k, v in master_paths.items()}
+    if "1x1" not in images:
+        return  # need 1x1 for hero
+
+    # Map each platform to which copy to use
+    copy_records = {c.platform: c for c in db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()}
+    plat_copy_map = {
+        "douyin": copy_records.get("douyin"),
+        "shipinhao": copy_records.get("shipinhao"),
+        "xiaohongshu": copy_records.get("xiaohongshu"),
+    }
+    for platform, copy_row in plat_copy_map.items():
+        if copy_row is None:
+            continue
+        copy_dict = {
+            "title": copy_row.title,
+            "subtitle": copy_row.subtitle,
+            "selling_points": copy_row.selling_points or [],
+        }
+        try:
+            out_path = platform_dir_fn(sku_dir, platform) / f"{image_stem}-detail-template.jpg"
+            render_detail_page(
+                template=DEFAULT_TEMPLATE,
+                copy=copy_dict,
+                images=images,
+                output_path=out_path,
+            )
+        except Exception:
+            pass  # 不阻塞图片输出
