@@ -50,31 +50,40 @@ _TECH = [
 ]
 
 # 美妆/食品（2）
+# Prompt 关键改进：明确前景表面 + 中景 + 背景三层结构，让 Codex 生成有纵深的真实场景
+# 而不是抽象色块。商品后续会被 composite 在前景表面上 — 所以场景必须先有"可放东西的桌面"。
 _BEAUTY = [
     SceneSeed(
         name="大理石台·暖光",
         category="美妆/食品",
         desc="美妆护肤、轻食、礼品类首选；通用度高，跨品类适配",
-        prompt="product on a white marble surface, warm soft window light from the left, 45-degree camera angle, premium product photography, shallow depth of field, minimal composition, natural shadows",
-        negative_prompt="cluttered, harsh light, oversaturated, low quality, watermark, text",
+        prompt="interior product photography scene, foreground: polished white marble countertop (empty surface where product will be placed), midground: softly out-of-focus warm beige wall with subtle daylight gradient, background: warm window light filtering in from upper-left casting soft caustics, side detail: a few green leaves at frame edge for life, depth of field with foreground sharp and background blurred, premium e-commerce photography aesthetic, no product visible, no text",
+        negative_prompt="floating background, abstract texture only, harsh light, oversaturated, low quality, watermark, text, logo",
     ),
     SceneSeed(
         name="亚麻布料背景",
         category="美妆/家居",
         desc="天然质感商品（精油/手作）",
-        prompt="natural linen fabric background, soft daylight, subtle wrinkles, organic warm feel, hand-crafted aesthetic",
-        negative_prompt="plastic, synthetic, glossy",
+        prompt="interior scene, foreground: a piece of natural beige linen fabric loosely draped over a wooden surface providing a clean placement area, midground: softly blurred warm tones, background: window light from the side, organic earthy feel, no product, no text",
+        negative_prompt="plastic, synthetic, glossy, harsh, watermark",
     ),
 ]
 
-# 食品/家居（1）
+# 食品/家居（2）
 _HOME = [
     SceneSeed(
         name="原木桌面·晨光",
         category="食品/家居",
         desc="食品、餐具、家居小物",
-        prompt="on oak wood table, morning sunlight from side, minimal lifestyle, warm natural tones, soft focus background",
-        negative_prompt="dark, shadow heavy",
+        prompt="interior scene, foreground: oak wood table surface with visible warm grain (empty area for product), midground: softly blurred sunlit window with sheer curtain, background: cream wall, side: small green plant peeking in, morning light side-cast, no product, no text",
+        negative_prompt="dark, shadow heavy, cluttered, watermark",
+    ),
+    SceneSeed(
+        name="中式实木桌面·窗光",
+        category="家居/工艺品/民俗",
+        desc="中式工艺品、布艺/刺绣摆件、文创、礼品类（如老虎布偶、香囊、刺绣摆件等）",
+        prompt="Chinese-style interior product photography scene, foreground: polished walnut wood tabletop (鸡翅木 or 红木) with rich warm grain, empty placement area, midground: softly out-of-focus traditional Chinese wooden cabinet with brass handles or carved wooden chair, soft window daylight from side, background: hint of paper window or bamboo curtain, side detail: green leaves of a small potted plant at frame edge, warm interior light, premium Chinese mid-range home decor e-commerce photography aesthetic, shallow depth of field with foreground sharp, no product visible, no text, no logo, no watermark",
+        negative_prompt="flat, abstract, single-color background, plastic, modern, harsh, oversaturated, watermark, text, logo, floating object",
     ),
 ]
 

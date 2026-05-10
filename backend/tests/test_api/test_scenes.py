@@ -3,7 +3,7 @@ def test_scene_crud(cli):
 
     # list 应该有 16 个内置场景
     scenes = cli.get(f"/api/projects/{pid}/scenes").json()
-    assert len(scenes) == 16
+    assert len(scenes) == 17
     assert "大理石台·暖光" in [s["name"] for s in scenes]
 
     # create

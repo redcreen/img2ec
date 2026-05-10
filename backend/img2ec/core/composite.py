@@ -18,26 +18,35 @@ from PIL import Image, ImageFilter
 # scale_pct closer to 1.0 → 商品 fills more of canvas, less whitespace, more detail visible.
 # 之前 0.5-0.7 的设置导致商品过小，无法展示细节。提高到 0.85-0.92。
 _RATIO_PLACEMENT: dict[str, tuple[float, float]] = {
-    "1x1":  (0.88, 0.55),
-    "long": (0.85, 0.18),  # top region; bottom 60% still reserved for detail-page composition
-    "3x4":  (0.88, 0.52),
-    "9x16": (0.78, 0.42),  # tall canvas — 商品 wide-side fits canvas width well at 0.78
-    "16x9": (0.85, 0.52),  # wide canvas — 商品 tall-side fills more of vertical space
+    # 把商品压在画面下半部，让它"落"在桌面线上而不是悬浮。0.65 让商品中心位于 65% 高度处。
+    "1x1":  (0.80, 0.62),
+    "long": (0.78, 0.48),  # 长图：商品中部偏上，下方桌面延伸 + 商品 = 自然 (不悬浮)
+    "3x4":  (0.80, 0.60),
+    "9x16": (0.72, 0.55),  # tall canvas
+    "16x9": (0.78, 0.62),  # wide canvas
 }
 
 
-def _make_drop_shadow(rgba: Image.Image, blur_px: int = 12, opacity: int = 70, offset: tuple[int, int] = (0, 14)) -> Image.Image:
-    """Build a soft drop shadow from商品 alpha channel."""
+def _make_shadow_layer(
+    rgba: Image.Image,
+    *,
+    blur_px: int,
+    opacity: int,
+    offset: tuple[int, int],
+) -> Image.Image:
+    """从 alpha 通道生成一层阴影 bitmap，加 blur + offset。"""
     if rgba.mode != "RGBA":
         rgba = rgba.convert("RGBA")
     alpha = rgba.split()[-1]
     shadow = Image.new("RGBA", rgba.size, (0, 0, 0, 0))
     shadow.paste((0, 0, 0, opacity), mask=alpha)
     shadow = shadow.filter(ImageFilter.GaussianBlur(blur_px))
-    # offset the shadow
-    out = Image.new("RGBA", (rgba.size[0] + offset[0], rgba.size[1] + offset[1]), (0, 0, 0, 0))
-    out.paste(shadow, offset)
-    return out
+    # canvas 比商品大一点，给 offset 腾空间
+    pad_x = abs(offset[0]) + blur_px * 2
+    pad_y = abs(offset[1]) + blur_px * 2
+    out = Image.new("RGBA", (rgba.size[0] + pad_x * 2, rgba.size[1] + pad_y * 2), (0, 0, 0, 0))
+    out.paste(shadow, (pad_x + offset[0], pad_y + offset[1]))
+    return out, pad_x, pad_y
 
 
 def composite_cutout_on_background(
@@ -90,12 +99,19 @@ def composite_cutout_on_background(
     x = (bg_w - new_w) // 2
     y = int((bg_h - new_h) * ya)
 
-    # Composite: bg → shadow → cutout
+    # Composite: bg → 远投影 (软, 模拟环境光) → 接触阴影 (硬, 模拟商品压在桌面) → cutout
     canvas = bg.convert("RGBA")
     if drop_shadow:
-        shadow_layer = _make_drop_shadow(cut_resized)
-        # paste shadow at商品 position (offset already inside shadow)
-        canvas.alpha_composite(shadow_layer, (x, y))
+        # 远投影：偏移多、模糊大、不透明度低 — 商品远处的环境投影
+        far_shadow, pad_fx, pad_fy = _make_shadow_layer(
+            cut_resized, blur_px=22, opacity=55, offset=(2, 28),
+        )
+        canvas.alpha_composite(far_shadow, (x - pad_fx, y - pad_fy))
+        # 接触阴影：偏移很小、模糊小、不透明度高 — 商品底部和桌面贴合处
+        contact_shadow, pad_cx, pad_cy = _make_shadow_layer(
+            cut_resized, blur_px=4, opacity=140, offset=(0, 5),
+        )
+        canvas.alpha_composite(contact_shadow, (x - pad_cx, y - pad_cy))
     canvas.alpha_composite(cut_resized, (x, y))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
