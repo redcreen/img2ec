@@ -1,4 +1,5 @@
 """Celery 任务：处理单张原图，同步 DB 状态。"""
+import random
 from pathlib import Path
 
 from img2ec.celery_app import celery_app
@@ -49,7 +50,9 @@ def process_image_task(self, image_id: str) -> str:
                 scene_prompt=scene.prompt,
                 scene_neg=scene.negative_prompt,
                 ip_weight=scene.ip_adapter_weight,
-                seed=42,
+                # 每张图随机 seed，避免 ComfyUI 对相同输入返回 cached 结果（cached
+                # outputs 字段为空会让 master_gen 报 "no output images"）。
+                seed=random.randint(1, 2**31 - 1),
                 comfy_client=client,
                 workflows_dir=WORKFLOWS_DIR,
                 on_progress=update_progress,
