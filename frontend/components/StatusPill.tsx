@@ -3,7 +3,7 @@ import type { SKUStatus, ImageStatus } from "@/lib/types";
 const labels: Record<string, string> = {
   draft: "编辑中", ready: "待处理", running: "处理中",
   done: "已完成", error: "部分失败",
-  pending: "排队", cutting: "抠图中", generating: "生 master 中",
+  pending: "排队", cutting: "抠图中", generating: "生场景中",
   composing: "派生中", failed: "失败",
 };
 

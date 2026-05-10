@@ -37,8 +37,12 @@ def process_one_image(
         cutout_with_rembg(src_path, cutout_path)
         cb("cutting", 100)
 
-    # 阶段 2: 生 5 张 master
+    # 阶段 2: 生 5 张 master，每张完成后回调更新进度（5 张 = 0%, 20%, 40%, 60%, 80%, 100%）
     cb("generating", 0)
+
+    def _on_master_done(_key: str, idx: int, total: int) -> None:
+        cb("generating", int(idx * 100 / total))
+
     master_paths = generate_all_masters(
         client=comfy_client,
         workflows_dir=workflows_dir,
@@ -49,8 +53,8 @@ def process_one_image(
         seed=seed,
         out_dir=master_dir(sku_dir),
         image_stem=image_stem,
+        on_master_done=_on_master_done,
     )
-    cb("generating", 100)
 
     # 阶段 3: 派生
     cb("composing", 0)

@@ -78,6 +78,7 @@ def generate_all_masters(
     out_dir: Path,
     image_stem: str,
     use_codex: bool = True,
+    on_master_done: "callable | None" = None,
 ) -> dict[str, Path]:
     """For each ratio: AI-generate background + PIL-composite商品 cutout on top.
 
@@ -92,7 +93,9 @@ def generate_all_masters(
     bg_dir.mkdir(parents=True, exist_ok=True)
 
     paths: dict[str, Path] = {}
-    for key, fname in MASTER_WORKFLOW_FILES.items():
+    items = list(MASTER_WORKFLOW_FILES.items())
+    total = len(items)
+    for idx, (key, fname) in enumerate(items):
         bg_path = bg_dir / f"{image_stem}-{key}-bg.jpg"
         master_path = out_dir / f"{image_stem}-{key}.jpg"
 
@@ -121,6 +124,8 @@ def generate_all_masters(
         )
 
         paths[key] = master_path
+        if on_master_done is not None:
+            on_master_done(key, idx + 1, total)
 
     return paths
 

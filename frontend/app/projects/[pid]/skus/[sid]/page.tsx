@@ -31,6 +31,37 @@ export default function SkuDetailPage() {
     router.push(`/projects/${pid}/skus`);
   };
 
+  // 整体进度计算：每张原图 0-100%（cutting 0-10, generating 0-100, composing 0-10），
+  // 5 master gen 在 generating 阶段做 5 步（每步 ~45s）。所有图 done 后还有 LLM + 详情页 ~10%。
+  const STAGE_PROGRESS: Record<string, number> = {
+    pending: 0, cutting: 5, generating: 10, composing: 90, done: 100, failed: 100,
+  };
+  const STAGE_LABEL: Record<string, string> = {
+    pending: "排队中", cutting: "抠图中", generating: "AI 生背景中", composing: "派生平台尺寸",
+    done: "图像完成", failed: "失败",
+  };
+  function imageOverallProgress(img: { status: string; progress: number }): number {
+    const base = STAGE_PROGRESS[img.status] ?? 0;
+    if (img.status === "generating") return base + (img.progress * 0.8);  // 10 → 90
+    if (img.status === "cutting") return base + (img.progress * 0.05);    // 5 → 10
+    if (img.status === "composing") return base + (img.progress * 0.1);   // 90 → 100
+    return base;
+  }
+  const totalImages = sku.images.length;
+  const avgImgProgress = totalImages
+    ? sku.images.reduce((s, i) => s + imageOverallProgress(i), 0) / totalImages
+    : 0;
+  const allImagesDone = totalImages > 0 && sku.images.every(i => i.status === "done");
+  // 所有图 done 但 SKU 还在 running → LLM + 详情页阶段（最后 10%）
+  const overallPct = sku.status === "done" ? 100
+    : allImagesDone && sku.status === "running" ? 92  // post-image stage
+    : Math.min(89, avgImgProgress * 0.9);
+
+  const currentImgIdx = sku.images.findIndex(i => i.status !== "done" && i.status !== "failed");
+  const currentImg = currentImgIdx >= 0 ? sku.images[currentImgIdx] : null;
+  // 预计输出 = 原图 × (5 master + 15 派生) + 3 详情页拼图
+  const totalOutputs = totalImages * 20 + 3;
+
   return (
     <div>
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 mb-3">
@@ -45,6 +76,33 @@ export default function SkuDetailPage() {
           <button onClick={onDelete} className="text-red-400 border border-red-400 rounded px-2 py-1 text-xs">删除</button>
         </div>
         <PathBar path={skuPath} label="SKU 目录" />
+
+        {(sku.status === "running" || sku.status === "ready") && totalImages > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center text-[11px] mb-1.5 gap-2 flex-wrap">
+              <span className="font-semibold">{Math.round(overallPct)}%</span>
+              <span className="opacity-40">|</span>
+              <span>预计输出 <strong>{totalOutputs}</strong> 张图（含 5 master × {totalImages} + 15 派生 × {totalImages} + 3 详情页拼图）</span>
+              {currentImg && (
+                <>
+                  <span className="opacity-40">|</span>
+                  <span>正在处理第 <strong>{currentImgIdx + 1}/{totalImages}</strong> 张原图: <span className="opacity-80">{currentImg.name}</span></span>
+                  <span className="opacity-40">|</span>
+                  <span className="opacity-70">{STAGE_LABEL[currentImg.status] || currentImg.status} ({currentImg.progress}%)</span>
+                </>
+              )}
+              {!currentImg && allImagesDone && sku.status === "running" && (
+                <>
+                  <span className="opacity-40">|</span>
+                  <span className="opacity-70">所有图已生成 — 正在生成 3 平台文案 + 详情页拼图…</span>
+                </>
+              )}
+            </div>
+            <div className="h-2 bg-zinc-800 rounded overflow-hidden">
+              <div className="h-full bg-blue-500 transition-all" style={{ width: `${overallPct}%` }} />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
