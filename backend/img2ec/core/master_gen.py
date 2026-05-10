@@ -2,9 +2,29 @@
 
 Phase 2 扩展为 generate_masters_all() 同时生 5 张 (1:1, long, 3:4, 9:16, 16:9)。
 """
+import tempfile
 from pathlib import Path
 
+from PIL import Image
+
 from img2ec.infra.comfy_client import ComfyClient, ComfyError
+
+
+def _flatten_rgba_to_white_rgb(src: Path) -> Path:
+    """If src is RGBA (transparent cutout), composite onto white and save as RGB JPEG.
+
+    IPAdapter Flux extracts visual features via siglip CLIP-vision; transparent regions
+    confuse the embedding. Compositing on white gives IPAdapter a clean 商品-on-white reference.
+    Returns path to the flattened temp file (or the original path if no conversion needed).
+    """
+    with Image.open(src) as img:
+        if img.mode != "RGBA":
+            return src
+        white = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        composed = Image.alpha_composite(white, img).convert("RGB")
+    tmp = Path(tempfile.gettempdir()) / f"ipadapter_input_{src.stem}.jpg"
+    composed.save(tmp, "JPEG", quality=92)
+    return tmp
 
 
 def generate_master_1x1(
@@ -19,13 +39,16 @@ def generate_master_1x1(
     output_path: Path,
 ) -> Path:
     """跑 ComfyUI 生 1 张 1:1 master，存到 output_path。"""
-    uploaded_name = client.upload_image(cutout_path)
+    flat_cutout = _flatten_rgba_to_white_rgb(cutout_path)
+    uploaded_name = client.upload_image(flat_cutout)
+    # SceneTemplate.ip_adapter_weight is 0-100 (UX-friendly slider). IPAdapter Flux node
+    # expects 0.0-1.0 float — convert here.
     workflow = client.render_workflow(
         workflow_path,
         cutout=uploaded_name,
         prompt=prompt,
         neg=negative_prompt,
-        ip_weight=ip_weight,
+        ip_weight=ip_weight / 100.0,
         seed=seed,
     )
     prompt_id = client.submit_prompt(workflow)

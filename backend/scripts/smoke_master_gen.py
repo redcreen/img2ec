@@ -27,12 +27,24 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def make_test_cutout() -> Path:
-    """Create a fake 'product' cutout (RGBA, transparent bg, centered colored shape)."""
-    img = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    """Create a fake 'product' cutout — large商品 (bottle-like shape) filling most of frame.
+
+    IPAdapter extracts visual features from the whole image; sparse subjects on transparent
+    bg produce weak embeddings.
+    """
     from PIL import ImageDraw
 
+    img = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.ellipse([128, 128, 384, 384], fill=(50, 100, 200, 255))
+    # bottle body
+    draw.rounded_rectangle([180, 100, 332, 470], radius=30, fill=(50, 100, 200, 255))
+    # bottle neck
+    draw.rectangle([230, 60, 282, 110], fill=(50, 100, 200, 255))
+    # cap
+    draw.rounded_rectangle([220, 30, 292, 75], radius=8, fill=(180, 180, 180, 255))
+    # label
+    draw.rectangle([195, 200, 317, 340], fill=(240, 240, 230, 255))
+    draw.rectangle([210, 250, 302, 280], fill=(140, 30, 30, 255))
     path = OUT_DIR / "test_cutout.png"
     img.save(path)
     return path
@@ -66,9 +78,9 @@ def main() -> int:
             client=client,
             workflow_path=WORKFLOW,
             cutout_path=cutout,
-            prompt="on white marble surface, warm soft window light, 45-degree angle, premium product photography",
+            prompt="bottle on white marble surface, warm soft window light, 45-degree angle, premium product photography, sharp focus on product",
             negative_prompt="cluttered, harsh light, oversaturated, low quality, watermark, text",
-            ip_weight=60,
+            ip_weight=30,  # try lower weight; prompt needs more breathing room
             seed=SEED,
             output_path=output_path,
         )

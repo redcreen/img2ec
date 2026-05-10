@@ -1,11 +1,11 @@
 {
-  "_doc": "Phase 1 MVP baseline workflow: pure prompt-driven Flux dev FP8 1024x1024. NOT YET integrated with IPAdapter — the商品 cutout is uploaded but not used (this validates pipeline wiring; the 商品 itself won't appear in output until Phase 1.5 IPAdapter integration). Tested 2026-05-09 on gpu box (RTX 4080 SUPER), 12.7s/image.",
+  "_doc": "Phase 1.5: Flux dev FP8 + IPAdapter Flux 1024x1024. 商品 cutout via IPAdapter injects visual identity into the scene. Tested 2026-05-10 after siglip clip_vision processor was rsynced from mac to gpu box (gpu box can't access HF Hub). IPAdapterFluxLoader loads siglip locally from models/clip_vision/siglip-so400m-patch14-384/.",
   "_inputs_doc": {
-    "PROMPT": "Positive prompt — scene description, e.g. 'on white marble surface, warm soft window light, premium product photography'",
-    "NEG": "Negative prompt, e.g. 'blurry, low quality, watermark'",
-    "SEED": "Integer random seed",
-    "CUTOUT_unused": "Currently uploaded but ignored; placeholder kept for forward compatibility",
-    "IP_WEIGHT_unused": "Currently ignored; will be 0.0-1.0 float once IPAdapter is wired"
+    "CUTOUT": "ComfyUI-uploaded cutout filename (transparent商品 PNG)",
+    "PROMPT": "Positive prompt — scene description",
+    "NEG": "Negative prompt",
+    "IP_WEIGHT": "IPAdapter weight 0.0-1.0 (master_gen passes ip_weight/100 → 60 becomes 0.6)",
+    "SEED": "Integer random seed"
   },
   "1": {
     "inputs": {
@@ -53,6 +53,40 @@
   },
   "5": {
     "inputs": {
+      "image": "__CUTOUT__"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Product Cutout"
+    }
+  },
+  "6": {
+    "inputs": {
+      "ipadapter": "flux-ip-adapter-instantx.bin",
+      "clip_vision": "google/siglip-so400m-patch14-384",
+      "provider": "cuda"
+    },
+    "class_type": "IPAdapterFluxLoader",
+    "_meta": {
+      "title": "Load IPAdapter Flux"
+    }
+  },
+  "7": {
+    "inputs": {
+      "model": ["1", 0],
+      "ipadapter_flux": ["6", 0],
+      "image": ["5", 0],
+      "weight": "__IP_WEIGHT__",
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    },
+    "class_type": "ApplyIPAdapterFlux",
+    "_meta": {
+      "title": "Apply IPAdapter Flux"
+    }
+  },
+  "8": {
+    "inputs": {
       "width": 1024,
       "height": 1024,
       "batch_size": 1
@@ -62,7 +96,7 @@
       "title": "Empty Latent (1024x1024)"
     }
   },
-  "6": {
+  "9": {
     "inputs": {
       "vae_name": "taef1"
     },
@@ -71,12 +105,12 @@
       "title": "Load VAE"
     }
   },
-  "7": {
+  "10": {
     "inputs": {
-      "model": ["1", 0],
+      "model": ["7", 0],
       "positive": ["3", 0],
       "negative": ["4", 0],
-      "latent_image": ["5", 0],
+      "latent_image": ["8", 0],
       "seed": "__SEED__",
       "steps": 20,
       "cfg": 7.5,
@@ -89,20 +123,20 @@
       "title": "KSampler"
     }
   },
-  "8": {
+  "11": {
     "inputs": {
-      "samples": ["7", 0],
-      "vae": ["6", 0]
+      "samples": ["10", 0],
+      "vae": ["9", 0]
     },
     "class_type": "VAEDecode",
     "_meta": {
       "title": "VAE Decode"
     }
   },
-  "9": {
+  "12": {
     "inputs": {
-      "images": ["8", 0],
-      "filename_prefix": "img2ec_master"
+      "images": ["11", 0],
+      "filename_prefix": "img2ec_master_ipadapter"
     },
     "class_type": "SaveImage",
     "_meta": {

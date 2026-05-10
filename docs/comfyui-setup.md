@@ -119,7 +119,43 @@ python scripts/smoke_master_gen.py
 - `[3/4]` 提交 workflow，~100s 出图（首次；后续 ~30s）
 - `[4/4]` `/tmp/img2ec_smoke/smoke_master_1x1.png` 存在，size > 100KB
 
-## IPAdapter Flux — 已识别 BLOCKER（Phase 1.5 单独处理）
+## IPAdapter Flux — ✅ 已修通（2026-05-10）
+
+### 修法（已采纳）
+
+gpu box 的 HuggingFace 网络问题用 mac 中转绕开：
+1. mac（能上 HF）下载完整 `google/siglip-so400m-patch14-384` 仓库到 `/tmp/`
+2. `model.safetensors` 与 gpu 上现有同名文件 MD5 一致，跳过传输
+3. scp 6 个小文件（config / preprocessor / tokenizer / spiece / special tokens）到 `D:\Ai\ComfyUI_windows_portable\ComfyUI\models\clip_vision\siglip-so400m-patch14-384\`
+4. 验证：`python_embeded\python.exe -c "AutoProcessor.from_pretrained(<local_path>, local_files_only=True)"` 返回 `SiglipProcessor`
+
+### Mac 端代码改动
+
+- `backend/workflows/generate_master_1x1.json` 替换为 IPAdapter 12-node 版本（含 `LoadImage` + `IPAdapterFluxLoader` + `ApplyIPAdapterFlux`）
+- `backend/img2ec/core/master_gen.py`：`ip_weight=ip_weight / 100.0`（0-100 → 0.0-1.0）
+- `backend/img2ec/core/master_gen.py`：新增 `_flatten_rgba_to_white_rgb()` — IPAdapter 不能很好处理透明 PNG，上传前把 RGBA cutout 拍平到白底 RGB
+
+### 验证结果
+
+`scripts/smoke_master_gen.py` 跑通：商品（瓶状物 RGBA cutout，flatten 后）输入 → IPAdapter 注入视觉特征 → prompt 驱动大理石场景 → 输出图含**可识别的商品** + **场景背景**。
+
+**节点执行确认**（ComfyUI history）：
+- node 6 `IPAdapterFluxLoader` ✓
+- node 7 `ApplyIPAdapterFlux` ✓
+
+### 调优方向（Phase 1.6+）
+
+当前默认参数 (steps=20, cfg=7.5, scheduler=simple, IPAdapter weight=0.6) 输出有些发糊。可以试：
+- 提高 steps 到 28-30
+- 调 weight 到 0.4-0.5（让 prompt 更主导画面构图）
+- 用更精细的 cutout（rembg 真实电商图比合成图效果好）
+- 切到 `dpmpp_2m_sde` + `karras` 看看锐度
+
+这些是产品化迭代，**不阻塞架构层**。
+
+---
+
+## IPAdapter 修通前的 BLOCKER 记录（保留供日后参考）
 
 目标：让商品 cutout 真正注入到生成结果中，而不是只跑 prompt。
 
