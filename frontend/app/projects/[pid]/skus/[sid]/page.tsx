@@ -25,6 +25,15 @@ export default function SkuDetailPage() {
   const skuPath = project ? `${project.root_path}/${sku.name}` : "";
 
   const onProcess = async () => { await api.processSku(pid, sid); mutate(); };
+  const onCancel = async () => {
+    if (!confirm("停止处理？已生成的图会保留，未生成的不再继续。")) return;
+    try {
+      await api.cancelSku(pid, sid);
+      mutate();
+    } catch (e: any) {
+      alert("停止失败：" + e.message);
+    }
+  };
   const onDelete = async () => {
     if (!confirm(`删除 SKU "${sku.name}"？`)) return;
     await api.deleteSku(pid, sid);
@@ -70,9 +79,10 @@ export default function SkuDetailPage() {
           <StatusPill status={sku.status} />
           <div className="flex-1" />
           {sku.status === "ready" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 开始处理</button>}
-          {sku.status === "running" && <span className="text-sm opacity-60">⏳ 处理中…</span>}
+          {sku.status === "running" && <button onClick={onCancel} className="px-3 py-2 text-sm border border-amber-500 text-amber-300 rounded font-semibold hover:bg-amber-500/20">⏹ 停止</button>}
           {sku.status === "done" && <a href={api.downloadSku(sku.id)} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">⬇ 一键下载 zip</a>}
           {sku.status === "error" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 重试失败项</button>}
+          {sku.status === "cancelled" && <button onClick={onProcess} className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">▶ 继续处理</button>}
           <button onClick={onDelete} className="text-red-400 border border-red-400 rounded px-2 py-1 text-xs">删除</button>
         </div>
         <PathBar path={skuPath} label="SKU 目录" />
@@ -128,11 +138,17 @@ export default function SkuDetailPage() {
               </div>
             </div>
           ))}
-          {sku.status === "done" && (
+          {/* 渐进式展示：处理中 / 已完成 / 已停止 / 部分失败 都展示已生成的 master */}
+          {sku.images.some(i => i.master_urls && Object.keys(i.master_urls).length > 0) && (
             <div className="mt-6 space-y-4">
               <MasterGallery images={sku.images} />
-              <DerivedTable images={sku.images} />
-              <BizFieldsTabs skuId={sid} />
+              {/* 派生 + 文案 + 详情页 只在 SKU 完成才展示（这些都是后处理产物） */}
+              {sku.status === "done" && (
+                <>
+                  <DerivedTable images={sku.images} />
+                  <BizFieldsTabs skuId={sid} />
+                </>
+              )}
             </div>
           )}
         </div>

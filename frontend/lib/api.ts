@@ -43,6 +43,8 @@ export const api = {
     req<void>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, { method: "DELETE" }),
   processSku: (pid: string, sid: string) =>
     req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process`, { method: "POST" }),
+  cancelSku: (pid: string, sid: string) =>
+    req<{ ok: boolean }>(`/api/projects/${pid}/skus/${sid}/cancel`, { method: "POST" }),
   deleteSku: (pid: string, sid: string) => req<void>(`/api/projects/${pid}/skus/${sid}`, { method: "DELETE" }),
 
   reveal: (path: string) => req<void>("/api/fs/reveal", { method: "POST", body: JSON.stringify({ path }) }),

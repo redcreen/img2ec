@@ -14,6 +14,10 @@ from img2ec.models import Project, SKU, SKUStatus, SourceImage, ImageStatus, Sce
 WORKFLOWS_DIR = Path(__file__).parents[2] / "workflows"
 
 
+class CancelRequested(Exception):
+    """User-requested cancel signal, propagated up through the pipeline."""
+
+
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
 def process_image_task(self, image_id: str) -> str:
     settings = get_settings()
@@ -32,6 +36,14 @@ def process_image_task(self, image_id: str) -> str:
             db.commit()
             return "no_scene"
 
+        # 用户在 SKU 排队等待时就点了 cancel？直接 bail
+        db.refresh(sku)
+        if sku.status == "cancelled":
+            img.status = ImageStatus.FAILED.value
+            img.err_msg = "cancelled by user"
+            db.commit()
+            return "cancelled"
+
         skud = sku_dir_fn(Path(project.root_path).parent, project.name, sku.name)
         ensure_sku_dirs(skud)
 
@@ -41,6 +53,15 @@ def process_image_task(self, image_id: str) -> str:
             img.status = stage if stage in ("cutting", "generating", "composing") else img.status
             img.progress = pct
             db.commit()
+
+        def on_master_done(key: str, master_path: Path, idx: int, total: int) -> None:
+            """每完成一张 master：① 写入 master_paths（前端轮询能立刻看到缩略图）
+            ② 检查 SKU 是否被 cancel（用户随时可停止）"""
+            img.master_paths = {**(img.master_paths or {}), key: str(master_path)}
+            db.commit()
+            db.refresh(sku)
+            if sku.status == "cancelled":
+                raise CancelRequested(f"cancel detected after master {idx}/{total}")
 
         try:
             derived = process_one_image(
@@ -56,6 +77,7 @@ def process_image_task(self, image_id: str) -> str:
                 comfy_client=client,
                 workflows_dir=WORKFLOWS_DIR,
                 on_progress=update_progress,
+                on_master_done=on_master_done,
             )
             # derived 现在是 {platform: [paths]} 而不是 {platform: path}
             img.derived_paths = {
@@ -70,6 +92,11 @@ def process_image_task(self, image_id: str) -> str:
             img.status = ImageStatus.DONE.value
             img.progress = 100
             db.commit()
+        except CancelRequested as e:
+            img.status = ImageStatus.FAILED.value
+            img.err_msg = "cancelled by user"
+            db.commit()
+            return "cancelled"
         except ComfyError as e:
             img.status = ImageStatus.FAILED.value
             img.err_msg = str(e)
@@ -117,9 +144,11 @@ def process_image_task(self, image_id: str) -> str:
             except Exception:
                 pass
 
-        # 聚合 SKU 状态
-        sku.status = _aggregate_sku_status(sku, db)
-        db.commit()
+        # 聚合 SKU 状态。用户 cancel 优先：保留 cancelled 状态。
+        db.refresh(sku)
+        if sku.status != "cancelled":
+            sku.status = _aggregate_sku_status(sku, db)
+            db.commit()
         return "done"
     finally:
         db.close()

@@ -131,9 +131,11 @@ def process_sku(project_id: str, sku_id: str, db: Session = Depends(get_session)
     if not targets:
         raise HTTPException(400, "no pending or failed images")
 
+    # 重新开始处理时清掉 cancelled 标记
     sku.status = SKUStatus.RUNNING.value
     for img in targets:
         img.status = ImageStatus.PENDING.value
+        img.err_msg = None
     db.commit()
 
     # 派发 Celery 任务
@@ -142,3 +144,16 @@ def process_sku(project_id: str, sku_id: str, db: Session = Depends(get_session)
         process_image_task.delay(img.id)
 
     return {"queued": len(targets)}
+
+
+@router.post("/{sku_id}/cancel", status_code=200)
+def cancel_sku(project_id: str, sku_id: str, db: Session = Depends(get_session)) -> dict:
+    """请求停止处理。Pipeline 会在下一个 master 完成后检测到并 bail；已生成的 master 保留。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    if sku.status != SKUStatus.RUNNING.value:
+        raise HTTPException(400, f"only running SKU can be cancelled (current: {sku.status})")
+    sku.status = "cancelled"
+    db.commit()
+    return {"ok": True}

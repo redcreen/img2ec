@@ -37,7 +37,7 @@ export interface SourceImage {
   derived_urls: Record<string, string>;
 }
 
-export type SKUStatus = "draft" | "ready" | "running" | "done" | "error";
+export type SKUStatus = "draft" | "ready" | "running" | "done" | "error" | "cancelled";
 
 export interface SKU {
   id: string;

@@ -10,6 +10,7 @@ from img2ec.infra.comfy_client import ComfyClient
 from img2ec.infra.fs_layout import cutout_dir, master_dir, outputs_dir
 
 ProgressCb = Callable[[str, int], None]
+MasterDoneCb = Callable[[str, Path, int, int], None]  # (key, master_path, idx, total)
 
 
 def process_one_image(
@@ -24,6 +25,7 @@ def process_one_image(
     comfy_client: ComfyClient,
     workflows_dir: Path,
     on_progress: ProgressCb | None = None,
+    on_master_done: MasterDoneCb | None = None,
 ) -> dict[str, list[Path]]:
     """跑完返回派生输出 {platform: [paths]} 字典。"""
     cb: ProgressCb = on_progress or (lambda _s, _p: None)
@@ -39,9 +41,13 @@ def process_one_image(
 
     # 阶段 2: 生 5 张 master，每张完成后回调更新进度（5 张 = 0%, 20%, 40%, 60%, 80%, 100%）
     cb("generating", 0)
+    master_out = master_dir(sku_dir)
 
-    def _on_master_done(_key: str, idx: int, total: int) -> None:
+    def _on_master_done(key: str, idx: int, total: int) -> None:
         cb("generating", int(idx * 100 / total))
+        if on_master_done is not None:
+            master_path = master_out / f"{image_stem}-{key}.jpg"
+            on_master_done(key, master_path, idx, total)
 
     master_paths = generate_all_masters(
         client=comfy_client,
@@ -51,7 +57,7 @@ def process_one_image(
         negative_prompt=scene_neg,
         ip_weight=ip_weight,
         seed=seed,
-        out_dir=master_dir(sku_dir),
+        out_dir=master_out,
         image_stem=image_stem,
         on_master_done=_on_master_done,
     )
