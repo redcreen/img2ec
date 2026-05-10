@@ -29,7 +29,10 @@
   },
   "3": {
     "inputs": {
-      "clip": ["2", 0],
+      "clip": [
+        "2",
+        0
+      ],
       "clip_l": "__PROMPT__",
       "t5xxl": "__PROMPT__",
       "guidance": 3.5
@@ -41,7 +44,10 @@
   },
   "4": {
     "inputs": {
-      "clip": ["2", 0],
+      "clip": [
+        "2",
+        0
+      ],
       "clip_l": "__NEG__",
       "t5xxl": "__NEG__",
       "guidance": 3.5
@@ -73,9 +79,18 @@
   },
   "7": {
     "inputs": {
-      "model": ["1", 0],
-      "ipadapter_flux": ["6", 0],
-      "image": ["5", 0],
+      "model": [
+        "1",
+        0
+      ],
+      "ipadapter_flux": [
+        "6",
+        0
+      ],
+      "image": [
+        "5",
+        0
+      ],
       "weight": "__IP_WEIGHT__",
       "start_percent": 0.0,
       "end_percent": 1.0
@@ -107,15 +122,27 @@
   },
   "10": {
     "inputs": {
-      "model": ["7", 0],
-      "positive": ["3", 0],
-      "negative": ["4", 0],
-      "latent_image": ["8", 0],
+      "model": [
+        "7",
+        0
+      ],
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "8",
+        0
+      ],
       "seed": "__SEED__",
-      "steps": 20,
-      "cfg": 7.5,
-      "sampler_name": "euler",
-      "scheduler": "simple",
+      "steps": 28,
+      "cfg": 1.0,
+      "sampler_name": "dpmpp_2m_sde",
+      "scheduler": "karras",
       "denoise": 1.0
     },
     "class_type": "KSampler",
@@ -125,8 +152,14 @@
   },
   "11": {
     "inputs": {
-      "samples": ["10", 0],
-      "vae": ["9", 0]
+      "samples": [
+        "10",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ]
     },
     "class_type": "VAEDecode",
     "_meta": {
@@ -135,7 +168,10 @@
   },
   "12": {
     "inputs": {
-      "images": ["11", 0],
+      "images": [
+        "11",
+        0
+      ],
       "filename_prefix": "img2ec_master_ipadapter"
     },
     "class_type": "SaveImage",

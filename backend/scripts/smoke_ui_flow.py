@@ -73,7 +73,9 @@ def main() -> int:
         if not scenes:
             print("FAIL: no default scene seeded")
             return 1
-        scene = scenes[0]
+        # Prefer 大理石台·暖光 — the visually-rich scene that exercises IPAdapter best.
+        # Falls back to scenes[0] if not found (older seed sets).
+        scene = next((s for s in scenes if s["name"] == "大理石台·暖光"), scenes[0])
         print(f"[2] scene: {scene['name']} ({scene['category']})")
 
         # 3. create SKU

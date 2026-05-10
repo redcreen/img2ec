@@ -143,15 +143,29 @@ gpu box 的 HuggingFace 网络问题用 mac 中转绕开：
 - node 6 `IPAdapterFluxLoader` ✓
 - node 7 `ApplyIPAdapterFlux` ✓
 
-### 调优方向（Phase 1.6+）
+### 调优方向 — Phase 2 已采纳
 
-当前默认参数 (steps=20, cfg=7.5, scheduler=simple, IPAdapter weight=0.6) 输出有些发糊。可以试：
-- 提高 steps 到 28-30
-- 调 weight 到 0.4-0.5（让 prompt 更主导画面构图）
-- 用更精细的 cutout（rembg 真实电商图比合成图效果好）
-- 切到 `dpmpp_2m_sde` + `karras` 看看锐度
+Phase 2（`v0.2.0` tag）已升级所有 5 个 workflow 的 KSampler 默认参数：
 
-这些是产品化迭代，**不阻塞架构层**。
+| 参数 | Phase 1 默认 | Phase 2 默认 | 理由 |
+|---|---|---|---|
+| `steps` | 20 | **28** | Flux dev 在 25-30 steps 出图细节最佳 |
+| `cfg` | 7.5 | **1.0** | Flux 用 `CLIPTextEncodeFlux.guidance` 做条件强度（默认 3.5），KSampler CFG 应为 1.0；CFG=7.5 是 SD1.5/SDXL 的习惯，对 Flux 会过曝失真 |
+| `sampler_name` | euler | **dpmpp_2m_sde** | Flux 与 dpmpp_2m_sde + karras 配合细节更好 |
+| `scheduler` | simple | **karras** | 同上 |
+| IPAdapter weight | 60 (0.6) | 60 (0.6) | 保留，默认值合理；用户可在场景模板里调 |
+
+### 输出质量取决于输入图
+
+合成 cutout（PIL 画的色块）→ IPAdapter 提取不到有意义的 visual features → 出图永远雾化。**真实电商图（鞋包美妆食品照片）→ IPAdapter 能很好注入材质、颜色、纹理**。
+
+调优必须用真实商品图迭代，合成图测不出来。
+
+### 后续可调（V1.1+ 候选）
+
+- 在场景模板里加 `cfg`、`steps`、`sampler` 字段，让用户为不同场景调（比如服饰要锐，食品要柔）
+- 加 `start_percent` / `end_percent` 控制 IPAdapter 应用阶段（前期注入商品形状，后期让 prompt 加风格）
+- ControlNet Canny 锁住商品轮廓 — 配合 IPAdapter 让形状稳定不漂移（需要 `comfyui_controlnet_aux` 节点）
 
 ---
 
