@@ -55,3 +55,7 @@ celerybeat-schedule
 .coverage
 htmlcov/
 coverage.xml
+
+# Fonts (downloaded by setup_fonts.sh)
+backend/assets/fonts/*.otf
+backend/assets/fonts/*.ttf
