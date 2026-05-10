@@ -15,16 +15,17 @@ def setup_dirs(tmp_path):
     return tmp_path, src
 
 
-@patch("img2ec.core.pipeline.derive_main_1x1_for_platforms")
-@patch("img2ec.core.pipeline.generate_master_1x1")
+@patch("img2ec.core.pipeline.derive_all_for_image")
+@patch("img2ec.core.pipeline.generate_all_masters")
 @patch("img2ec.core.pipeline.cutout_with_rembg")
 @patch("img2ec.core.pipeline.is_white_background")
 def test_pipeline_white_bg_skips_cutout(
-    mock_bg, mock_cut, mock_master, mock_derive, setup_dirs
+    mock_bg, mock_cut, mock_master, mock_derive, setup_dirs, tmp_path
 ):
     sku_dir, src = setup_dirs
     mock_bg.return_value = True
-    mock_derive.return_value = {"douyin": sku_dir / "out.jpg"}
+    mock_master.return_value = {k: tmp_path / f"m-{k}.jpg" for k in ("1x1", "long", "3x4", "9x16", "16x9")}
+    mock_derive.return_value = {"douyin": [tmp_path / "out.jpg"]}
 
     progress: list[tuple[str, int]] = []
     process_one_image(
@@ -36,7 +37,7 @@ def test_pipeline_white_bg_skips_cutout(
         ip_weight=60,
         seed=1,
         comfy_client=MagicMock(),
-        workflow_path=Path("wf.json"),
+        workflows_dir=Path("workflows"),
         on_progress=lambda stage, pct: progress.append((stage, pct)),
     )
 
@@ -49,16 +50,17 @@ def test_pipeline_white_bg_skips_cutout(
     assert "composing" in stages
 
 
-@patch("img2ec.core.pipeline.derive_main_1x1_for_platforms")
-@patch("img2ec.core.pipeline.generate_master_1x1")
+@patch("img2ec.core.pipeline.derive_all_for_image")
+@patch("img2ec.core.pipeline.generate_all_masters")
 @patch("img2ec.core.pipeline.cutout_with_rembg")
 @patch("img2ec.core.pipeline.is_white_background")
 def test_pipeline_photo_bg_runs_cutout(
-    mock_bg, mock_cut, mock_master, mock_derive, setup_dirs
+    mock_bg, mock_cut, mock_master, mock_derive, setup_dirs, tmp_path
 ):
     sku_dir, src = setup_dirs
     mock_bg.return_value = False
-    mock_derive.return_value = {"douyin": sku_dir / "out.jpg"}
+    mock_master.return_value = {k: tmp_path / f"m-{k}.jpg" for k in ("1x1", "long", "3x4", "9x16", "16x9")}
+    mock_derive.return_value = {"douyin": [tmp_path / "out.jpg"]}
 
     process_one_image(
         src_path=src,
@@ -69,7 +71,7 @@ def test_pipeline_photo_bg_runs_cutout(
         ip_weight=60,
         seed=1,
         comfy_client=MagicMock(),
-        workflow_path=Path("wf.json"),
+        workflows_dir=Path("workflows"),
     )
 
     mock_cut.assert_called_once()

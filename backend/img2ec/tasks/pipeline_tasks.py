@@ -10,7 +10,7 @@ from img2ec.infra.fs_layout import sku_dir as sku_dir_fn, ensure_sku_dirs
 from img2ec.models import Project, SKU, SKUStatus, SourceImage, ImageStatus, Scene
 
 
-WORKFLOW_PATH = Path(__file__).parents[2] / "workflows" / "generate_master_1x1.json"
+WORKFLOWS_DIR = Path(__file__).parents[2] / "workflows"
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
@@ -51,11 +51,19 @@ def process_image_task(self, image_id: str) -> str:
                 ip_weight=scene.ip_adapter_weight,
                 seed=42,
                 comfy_client=client,
-                workflow_path=WORKFLOW_PATH,
+                workflows_dir=WORKFLOWS_DIR,
                 on_progress=update_progress,
             )
-            img.derived_paths = {k: str(v) for k, v in derived.items()}
-            img.master_paths = {"1:1": str(skud / "master" / f"{Path(img.name).stem}-1x1.jpg")}
+            # derived 现在是 {platform: [paths]} 而不是 {platform: path}
+            img.derived_paths = {
+                f"{plat}/{p.name}": str(p)
+                for plat, paths in derived.items()
+                for p in paths
+            }
+            img.master_paths = {
+                key: str(skud / "master" / f"{Path(img.name).stem}-{key}.jpg")
+                for key in ("1x1", "long", "3x4", "9x16", "16x9")
+            }
             img.status = ImageStatus.DONE.value
             img.progress = 100
             db.commit()

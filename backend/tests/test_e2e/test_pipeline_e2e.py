@@ -19,14 +19,19 @@ def test_e2e_pipeline_with_white_bg(tmp_path, fixtures_dir, mock_comfy):
         ip_weight=60,
         seed=42,
         comfy_client=MagicMock(),
-        workflow_path=Path("workflows/generate_master_1x1.json"),
+        workflows_dir=Path("workflows"),
     )
 
+    # 4 平台都有派生
     assert set(derived.keys()) == {"douyin", "shipinhao", "taobao", "xiaohongshu"}
-    for path in derived.values():
-        assert path.exists()
-        with Image.open(path) as img:
-            assert img.size in [(1080, 1080), (800, 800)]
+    # 总共 15 张派生
+    total = sum(len(paths) for paths in derived.values())
+    assert total == 15
+
+    # 5 张 master 都生成了
+    master_dir = sku_d / "master"
+    masters = list(master_dir.glob("front-*.jpg"))
+    assert len(masters) == 5
 
 
 def test_e2e_pipeline_with_photo_bg_runs_cutout(tmp_path, fixtures_dir, mock_comfy):
@@ -42,9 +47,11 @@ def test_e2e_pipeline_with_photo_bg_runs_cutout(tmp_path, fixtures_dir, mock_com
         ip_weight=60,
         seed=42,
         comfy_client=MagicMock(),
-        workflow_path=Path("workflows/generate_master_1x1.json"),
+        workflows_dir=Path("workflows"),
     )
 
     # cutout/ 目录下应有抠图结果
     assert (sku_d / "cutout" / "side.png").exists()
-    assert len(derived) == 4
+    # 总共 15 张派生
+    total = sum(len(paths) for paths in derived.values())
+    assert total == 15
