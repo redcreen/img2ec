@@ -14,13 +14,15 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 
-# Per-ratio scale and y-anchor (0 = top, 0.5 = center, 1.0 = bottom)
+# Per-ratio scale (商品 longest-side as fraction of canvas longest-side) + y-anchor.
+# scale_pct closer to 1.0 → 商品 fills more of canvas, less whitespace, more detail visible.
+# 之前 0.5-0.7 的设置导致商品过小，无法展示细节。提高到 0.85-0.92。
 _RATIO_PLACEMENT: dict[str, tuple[float, float]] = {
-    "1x1":  (0.65, 0.55),
-    "long": (0.70, 0.20),  # top region; bottom 60% reserved for detail-page text/composition
-    "3x4":  (0.65, 0.50),
-    "9x16": (0.50, 0.45),  # tall canvas; smaller relative scale so background shows
-    "16x9": (0.55, 0.55),  # wide canvas; smaller scale
+    "1x1":  (0.88, 0.55),
+    "long": (0.85, 0.18),  # top region; bottom 60% still reserved for detail-page composition
+    "3x4":  (0.88, 0.52),
+    "9x16": (0.78, 0.42),  # tall canvas — 商品 wide-side fits canvas width well at 0.78
+    "16x9": (0.85, 0.52),  # wide canvas — 商品 tall-side fills more of vertical space
 }
 
 
@@ -72,13 +74,17 @@ def composite_cutout_on_background(
 
     bg_w, bg_h = bg.size
     cut_w, cut_h = cut.size
-    target_long = int(min(bg_w, bg_h) * s)
-    if cut_w >= cut_h:
-        new_w = target_long
-        new_h = int(cut_h * (target_long / cut_w))
+    # Fit商品 into a target box (scale_pct × canvas) preserving aspect ratio.
+    # 商品 fills at least one dimension to scale_pct × that canvas dim, never overflows.
+    # 比之前 min(bg_w, bg_h) 更激进 — 横版/竖版画布商品都能占画面主导。
+    target_w = bg_w * s
+    target_h = bg_h * s
+    if cut_w / target_w >= cut_h / target_h:
+        new_w = int(target_w)
+        new_h = int(cut_h * (target_w / cut_w))
     else:
-        new_h = target_long
-        new_w = int(cut_w * (target_long / cut_h))
+        new_h = int(target_h)
+        new_w = int(cut_w * (target_h / cut_h))
     cut_resized = cut.resize((new_w, new_h), Image.LANCZOS)
 
     x = (bg_w - new_w) // 2
