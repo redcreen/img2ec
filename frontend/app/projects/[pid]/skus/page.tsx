@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { PathBar } from "@/components/PathBar";
 import { SkuRow } from "@/components/SkuRow";
 import { NewSkuModal } from "@/components/NewSkuModal";
+import { BatchDownloadButton } from "@/components/BatchDownloadButton";
 
 export default function SkusPage() {
   const { pid } = useParams<{ pid: string }>();
@@ -24,6 +25,7 @@ export default function SkusPage() {
       {project && (
         <div className="bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 mb-3 flex justify-between items-center gap-3">
           <PathBar path={project.root_path} label="项目目录（本地）" />
+          {skus && <BatchDownloadButton pid={pid} skus={skus} />}
           <button onClick={() => setShowNew(true)}
             className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold whitespace-nowrap">+ 新建 SKU</button>
         </div>

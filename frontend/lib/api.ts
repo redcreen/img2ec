@@ -45,4 +45,5 @@ export const api = {
 
   reveal: (path: string) => req<void>("/api/fs/reveal", { method: "POST", body: JSON.stringify({ path }) }),
   downloadSku: (sid: string) => `/api/skus/${sid}/download`,
+  downloadProjectAll: (pid: string) => `/api/projects/${pid}/download-all`,
 };
