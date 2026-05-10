@@ -32,7 +32,7 @@ from PIL import Image, ImageDraw
 
 import os
 API = os.environ.get("IMG2EC_API", "http://localhost:8001")
-TIMEOUT = httpx.Timeout(connect=5, read=240, write=30, pool=10)
+TIMEOUT = httpx.Timeout(connect=5, read=900, write=30, pool=10)  # Phase 2: 5 master = ~5 min
 
 
 def make_test_image() -> bytes:
