@@ -32,6 +32,9 @@ export interface SourceImage {
   err_msg: string | null;
   master_paths: Record<string, string>;
   derived_paths: Record<string, string>;
+  src_url: string | null;
+  master_urls: Record<string, string>;
+  derived_urls: Record<string, string>;
 }
 
 export type SKUStatus = "draft" | "ready" | "running" | "done" | "error";

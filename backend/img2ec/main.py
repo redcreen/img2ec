@@ -29,8 +29,11 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    # Mount static files for detail-page templates and other project assets
-    app.mount("/static/projects", StaticFiles(directory=str(settings.root_path.parent)), name="projects")
+    # Mount static files for detail-page templates and other project assets.
+    # /static/projects/<project_name>/<sku_name>/... maps to <root_path>/<project_name>/<sku_name>/...
+    # check_dir=False so the app starts even if root_path doesn't exist yet (created on first project)
+    settings.root_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/projects", StaticFiles(directory=str(settings.root_path), check_dir=False), name="projects")
 
     return app
 

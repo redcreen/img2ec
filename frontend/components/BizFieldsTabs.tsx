@@ -3,6 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { PlatformCopy } from "@/lib/types";
+import { Lightbox } from "./Lightbox";
 
 const PLATFORM_LABEL: Record<string, string> = {
   douyin: "抖店", shipinhao: "视频号", xiaohongshu: "小红书",
@@ -67,6 +68,7 @@ export function BizFieldsTabs({ skuId }: { skuId: string }) {
 
   const copy = data?.find(c => c.platform === active);
   const platforms = ["douyin", "shipinhao", "xiaohongshu"] as const;
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const onRegen = async () => {
     setRegenerating(true);
@@ -107,8 +109,13 @@ export function BizFieldsTabs({ skuId }: { skuId: string }) {
         <div>
           {copy.detail_template_url && (
             <div className="mb-4">
-              <div className="text-[10px] uppercase opacity-60 mb-1">详情页拼图预览</div>
-              <img src={copy.detail_template_url} className="max-w-[300px] border border-zinc-700 rounded" alt="detail" />
+              <div className="text-[10px] uppercase opacity-60 mb-1">详情页拼图预览（点击看大图）</div>
+              <img
+                src={copy.detail_template_url}
+                className="max-w-[300px] border border-zinc-700 rounded cursor-zoom-in hover:border-blue-500"
+                alt="detail"
+                onClick={() => setLightboxUrl(copy.detail_template_url)}
+              />
             </div>
           )}
           <FieldRow label={active === "xiaohongshu" ? "笔记标题" : "标题"} value={copy.title} limit={TITLE_LIMIT[active]} />
@@ -123,6 +130,7 @@ export function BizFieldsTabs({ skuId }: { skuId: string }) {
           {copy.hashtags?.length > 0 && <ListField label="Hashtags" items={copy.hashtags} />}
         </div>
       )}
+      {lightboxUrl && <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }
