@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from img2ec.db import get_session
 from img2ec.models import Project, Scene
 from img2ec.schemas.scene import SceneCreate, SceneOut
+from img2ec.seeds.default_scenes import DEFAULT_SCENES
 
 router = APIRouter(prefix="/api/projects/{project_id}/scenes", tags=["scenes"])
 
@@ -46,3 +47,32 @@ def delete_scene(project_id: str, scene_id: str, db: Session = Depends(get_sessi
         raise HTTPException(404, "scene not found")
     db.delete(sc)
     db.commit()
+
+
+@router.post("/import-defaults", response_model=list[SceneOut], status_code=201)
+def import_default_scenes(project_id: str, db: Session = Depends(get_session)) -> list[Scene]:
+    """Bulk import the 16 default scenes into a project (skips duplicates by name)."""
+    if db.get(Project, project_id) is None:
+        raise HTTPException(404, "project not found")
+    existing_names = {n for (n,) in db.query(Scene.name).filter_by(project_id=project_id).all()}
+    added: list[Scene] = []
+    for seed in DEFAULT_SCENES:
+        if seed.name in existing_names:
+            continue
+        sc = Scene(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            name=seed.name,
+            category=seed.category,
+            desc=seed.desc,
+            prompt=seed.prompt,
+            negative_prompt=seed.negative_prompt,
+            ip_adapter_weight=seed.ip_adapter_weight,
+            base_model=seed.base_model,
+        )
+        db.add(sc)
+        added.append(sc)
+    db.commit()
+    for s in added:
+        db.refresh(s)
+    return added

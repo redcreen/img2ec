@@ -35,8 +35,10 @@ export default function SkusPage() {
       {showNew && project && scenes && (
         <NewSkuModal pid={pid} scenes={scenes}
           onClose={() => setShowNew(false)}
-          onCreated={async (sid) => {
-            await api.processSku(pid, sid);
+          onCreated={(sid) => {
+            // Fire-and-forget: navigate immediately so the detail page can show progress;
+            // processSku is sync in eager mode (~5 min) but we don't block the UI on it.
+            api.processSku(pid, sid).catch((e) => console.error("processSku failed:", e));
             mutate();
             router.push(`/projects/${pid}/skus/${sid}`);
           }} />

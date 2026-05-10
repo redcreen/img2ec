@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Scene } from "@/lib/types";
 
 export function NewSkuModal({
   pid, scenes, onClose, onCreated,
 }: { pid: string; scenes: Scene[]; onClose: () => void; onCreated: (sid: string) => void }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [sceneId, setSceneId] = useState(scenes[0]?.id ?? "");
@@ -23,12 +25,35 @@ export function NewSkuModal({
         await api.uploadImage(pid, sku.id, f);
       }
       onCreated(sku.id);
+      onClose();
     } catch (e: any) {
       setErr(e.message);
     } finally {
       setBusy(false);
     }
   };
+
+  // 如果项目里没有任何场景，先引导去建场景，不让用户卡在空下拉里
+  if (scenes.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 min-w-[440px] max-w-[600px]" onClick={e => e.stopPropagation()}>
+          <h2 className="text-lg font-bold mb-3">先去场景库建一个场景</h2>
+          <p className="text-sm opacity-75 mb-4">
+            创建 SKU 需要选一个场景模板（决定 AI 生背景的风格 — 大理石/木桌/大促/节日 等）。
+            当前项目还没有场景，先去场景库建一个或导入默认场景库。
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button className="px-3 py-2 text-sm border border-zinc-700 rounded" onClick={onClose}>取消</button>
+            <button
+              onClick={() => { onClose(); router.push(`/projects/${pid}/scenes`); }}
+              className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold"
+            >去场景库</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>

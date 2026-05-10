@@ -25,6 +25,8 @@ export const api = {
   updateScene: (pid: string, sid: string, payload: Partial<import("./types").Scene>) =>
     req<import("./types").Scene>(`/api/projects/${pid}/scenes/${sid}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteScene: (pid: string, sid: string) => req<void>(`/api/projects/${pid}/scenes/${sid}`, { method: "DELETE" }),
+  importDefaultScenes: (pid: string) =>
+    req<import("./types").Scene[]>(`/api/projects/${pid}/scenes/import-defaults`, { method: "POST" }),
 
   listSkus: (pid: string) => req<import("./types").SKU[]>(`/api/projects/${pid}/skus`),
   getSku: (pid: string, sid: string) => req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`),
