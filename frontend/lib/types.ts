@@ -19,6 +19,7 @@ export interface Scene {
   negative_prompt: string;
   ip_adapter_weight: number;
   base_model: string;
+  cover_url: string | null;
 }
 
 export type ImageStatus = "pending" | "cutting" | "generating" | "composing" | "done" | "failed";
@@ -39,13 +40,38 @@ export interface SourceImage {
 
 export type SKUStatus = "draft" | "ready" | "running" | "done" | "error" | "cancelled";
 
+export interface Variant {
+  id: string;
+  color_name: string;
+  status: SKUStatus;
+  // 主色卡（兼容 = sku_thumb_paths[0]）
+  sku_thumb_path: string | null;
+  sku_thumb_url: string | null;
+  // 多候选色卡（有序）
+  sku_thumb_paths: string[];
+  sku_thumb_urls: string[];
+  images: SourceImage[];
+  dimension_urls: Record<string, string>;
+  dimension_states: Record<string, { status: "idle" | "generating" | "error"; err: string | null }>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SKU {
   id: string;
   project_id: string;
   scene_id: string | null;
   name: string;
   status: SKUStatus;
+  variants: Variant[];
+  // 兼容字段（聚合所有变体）
   images: SourceImage[];
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  // 兼容字段（取 default variant 的）
+  dimension_urls: Record<string, string>;
+  dimension_states: Record<string, { status: "idle" | "generating" | "error"; err: string | null }>;
   created_at: string;
   updated_at: string;
 }

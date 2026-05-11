@@ -23,7 +23,7 @@ export function SceneEditorModal({
   }, [scene]);
 
   const submit = async () => {
-    if (!form.name.trim() || !form.prompt.trim()) return setErr("场景名和 prompt 必填");
+    if (!form.name.trim() || !form.prompt.trim()) return setErr("模板名和 prompt 必填");
     setBusy(true);
     try {
       if (scene) await api.updateScene(pid, scene.id, form);
@@ -38,7 +38,7 @@ export function SceneEditorModal({
 
   const del = async () => {
     if (!scene) return;
-    if (!confirm(`确认删除场景"${scene.name}"？`)) return;
+    if (!confirm(`确认删除模板"${scene.name}"？`)) return;
     await api.deleteScene(pid, scene.id);
     onSaved();
   };
@@ -47,9 +47,9 @@ export function SceneEditorModal({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 min-w-[520px] max-w-[700px] max-h-[90vh] overflow-y-auto"
            onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold mb-4">{scene ? "编辑场景" : "新建场景"}</h2>
+        <h2 className="text-lg font-bold mb-4">{scene ? "编辑模板" : "新建模板"}</h2>
         {[
-          { k: "name", label: "场景名", type: "input" },
+          { k: "name", label: "模板名", type: "input" },
           { k: "category", label: "品类（标签）", type: "input" },
           { k: "desc", label: "用途说明", type: "input" },
           { k: "prompt", label: "主 Prompt（英文）", type: "textarea" },

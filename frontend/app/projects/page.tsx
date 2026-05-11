@@ -30,7 +30,7 @@ export default function ProjectsPage() {
             <div className="h-20 bg-gradient-to-br from-zinc-700 to-zinc-900 rounded mb-3 flex items-center justify-center text-3xl opacity-50">📁</div>
             <h3 className="text-sm font-semibold mb-1">{p.name}</h3>
             <p className="text-xs opacity-60">{p.desc || "（无说明）"}</p>
-            <p className="text-xs opacity-60 mt-1">{p.sku_count} SKU · {p.scene_count} 场景</p>
+            <p className="text-xs opacity-60 mt-1">{p.sku_count} SKU · {p.scene_count} 模板</p>
           </Link>
         ))}
       </div>

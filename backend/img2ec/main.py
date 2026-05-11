@@ -17,10 +17,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from img2ec.api import projects, scenes, skus, outputs, fs, copy
+    from img2ec.api import projects, scenes, skus, outputs, fs, copy, variants
     app.include_router(projects.router)
     app.include_router(scenes.router)
     app.include_router(skus.router)
+    app.include_router(variants.router)
     app.include_router(outputs.router)
     app.include_router(fs.router)
     app.include_router(copy.router)
@@ -34,6 +35,12 @@ def create_app() -> FastAPI:
     # check_dir=False so the app starts even if root_path doesn't exist yet (created on first project)
     settings.root_path.mkdir(parents=True, exist_ok=True)
     app.mount("/static/projects", StaticFiles(directory=str(settings.root_path), check_dir=False), name="projects")
+
+    # 静态资源（场景代表图、字体等）
+    from pathlib import Path
+    assets_dir = Path(__file__).parent.parent / "assets"
+    if assets_dir.exists():
+        app.mount("/static/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
     return app
 

@@ -1,62 +1,343 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { SourceImage } from "@/lib/types";
+import { api } from "@/lib/api";
+import { useCuration, type ImageKey } from "@/lib/curation";
+import type { SourceImage, Variant } from "@/lib/types";
 import { Lightbox } from "./Lightbox";
+import { RatedImage } from "./RatedImage";
 
-const MASTER_KEYS = ["1x1", "long", "3x4", "9x16", "16x9"] as const;
+const RATIO_KEYS = ["1x1", "long", "3x4", "9x16", "16x9"] as const;
+const CLOSEUP_KEYS = ["front", "side", "detail"] as const;
 const RATIO_LABEL: Record<string, string> = {
   "1x1": "1:1", "long": "750w", "3x4": "3:4", "9x16": "9:16", "16x9": "16:9",
+  "front": "正面", "side": "侧面", "detail": "细节",
 };
-const SHARED_BY: Record<string, string[]> = {
-  "1x1":  ["抖店主图", "视频号主图", "淘宝主图", "小红书 1:1"],
-  "long": ["4 平台详情页"],
-  "3x4":  ["抖店视频封面", "小红书"],
-  "9x16": ["抖店视频封面"],
-  "16x9": ["淘宝视频封面"],
+const SHARED_BY: Record<string, string> = {
+  "1x1":  "抖店/视频号/淘宝/小红书主图",
+  "long": "4 平台详情页",
+  "3x4":  "抖店/小红书封面",
+  "9x16": "抖店视频封面",
+  "16x9": "淘宝视频封面",
+  "front":  "特写图（正面）",
+  "side":   "特写图（侧面）",
+  "detail": "特写图（细节）",
 };
+const RATIO_ORDER = ["1x1", "long", "3x4", "9x16", "16x9", "front", "side", "detail"];
 
-export function MasterGallery({ images }: { images: SourceImage[] }) {
+type ActiveTab =
+  | { kind: "image"; idx: number }
+  | { kind: "dim" }
+  | { kind: "library" };
+
+interface DimEntry { key: string; style: string; imgIdx: number; url: string; }
+interface LibOpt { key: ImageKey; url: string; label: string; }
+
+export function MasterGallery({
+  images, variant, pid, sid, onChanged,
+}: {
+  images: SourceImage[];
+  variant: Variant;
+  pid: string;
+  sid: string;
+  onChanged: () => void;
+}) {
+  const cur = useCuration(sid, variant.id);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const [active, setActive] = useState<ActiveTab>({ kind: "image", idx: 0 });
+  const [thumbBusy, setThumbBusy] = useState(false);
+
+  useEffect(() => { setActive({ kind: "image", idx: 0 }); }, [variant.id, images.length]);
+
+  // dim entries
+  const dimEntries: DimEntry[] = [];
+  for (const [k, url] of Object.entries(variant.dimension_urls || {})) {
+    const m = k.match(/^(white|template)_img(\d+)$/);
+    if (m) dimEntries.push({ key: k, style: m[1], imgIdx: parseInt(m[2]), url });
+  }
+  dimEntries.sort((a, b) =>
+    a.style === b.style ? a.imgIdx - b.imgIdx : a.style.localeCompare(b.style)
+  );
+
+  // SKU 选图候选 keys（用 url 文件名匹配）
+  const availableMap = useMemo(() => {
+    const map = new Map<ImageKey, LibOpt>();
+    images.forEach((img, idx) => {
+      for (const [ratio, url] of Object.entries(img.master_urls || {})) {
+        if (!url) continue;
+        const k: ImageKey = `img${idx}:${ratio}`;
+        map.set(k, { key: k, url, label: `${RATIO_LABEL[ratio] || ratio} · 原图${idx + 1}` });
+      }
+    });
+    for (const d of dimEntries) {
+      const key: ImageKey = `size_${d.key}`;
+      map.set(key, {
+        key,
+        url: d.url,
+        label: `${d.style === "white" ? "尺寸图·白底" : "尺寸图·模板"} · 原图${d.imgIdx + 1}`,
+      });
+    }
+    return map;
+  }, [images, variant.dimension_urls, dimEntries.length]);
+
+  const libraryKeys = useMemo(() => {
+    const ks = Array.from(availableMap.keys());
+    return ks.sort((a, b) => {
+      const ai = a.startsWith("size_") ? 9999 : parseInt(a.slice(3, a.indexOf(":")));
+      const bi = b.startsWith("size_") ? 9999 : parseInt(b.slice(3, b.indexOf(":")));
+      if (ai !== bi) return ai - bi;
+      const ar = a.startsWith("size_") ? a : a.split(":")[1];
+      const br = b.startsWith("size_") ? b : b.split(":")[1];
+      const aIdx = RATIO_ORDER.indexOf(ar);
+      const bIdx = RATIO_ORDER.indexOf(br);
+      return (aIdx < 0 ? 999 : aIdx) - (bIdx < 0 ? 999 : bIdx);
+    });
+  }, [availableMap]);
+
+  const thumbKeys = useMemo<ImageKey[]>(() => {
+    if (!variant.sku_thumb_paths?.length) return [];
+    return variant.sku_thumb_paths.map((p) => {
+      const tail = p.split("/").pop()!;
+      for (const [k, opt] of availableMap.entries()) {
+        if (decodeURIComponent(opt.url.split("/").pop()?.split("?")[0] || "") === tail) return k;
+      }
+      return "";
+    }).filter(Boolean) as ImageKey[];
+  }, [variant.sku_thumb_paths, availableMap]);
+
+  const setThumbs = async (keys: ImageKey[]) => {
+    setThumbBusy(true);
+    try {
+      await api.setVariantThumbnails(pid, sid, variant.id, keys);
+      onChanged();
+    } catch (e: any) {
+      alert("更新 SKU 选图失败：" + e.message);
+    } finally {
+      setThumbBusy(false);
+    }
+  };
+  const toggleThumb = (k: ImageKey) =>
+    setThumbs(thumbKeys.includes(k) ? thumbKeys.filter((x) => x !== k) : [...thumbKeys, k]);
+
+  const totalGenerated =
+    images.reduce((s, i) => s + Object.keys(i.master_urls || {}).length, 0) +
+    dimEntries.length;
+
+  if (images.length === 0) {
+    return (
+      <div>
+        <div className="text-xs uppercase opacity-50 mb-2">Master 资产</div>
+        <p className="text-xs opacity-60">该变体还没上传原图</p>
+      </div>
+    );
+  }
+
+  const cellProps = (k: ImageKey, url: string | undefined, label: string, sub?: string, accent?: boolean) => ({
+    imageKey: k, url, label, sub, accent,
+    cur, isThumb: thumbKeys.includes(k), thumbBusy,
+    onToggleThumb: () => toggleThumb(k),
+    onZoom: (u: string, alt: string) => setLightbox({ src: u, alt }),
+  });
 
   return (
     <div>
       <div className="text-xs uppercase opacity-50 mb-2">
-        Master 资产（5/原图 × {images.length} 原图 = {images.length * 5} 张）
+        Master 资产（已生成 {totalGenerated} 张 · 每张图可加入 主图/详情图/SKU 选图）
       </div>
-      {images.map((img, idx) => (
-        <div key={img.id} className="mb-4">
-          <div className="text-[11px] opacity-60 mb-2">原图 {idx + 1}: {img.name}</div>
-          <div className="grid grid-cols-5 gap-2">
-            {MASTER_KEYS.map((k) => {
-              const url = img.master_urls?.[k];
-              const ratio = RATIO_LABEL[k];
-              return (
-                <div key={k} className="bg-zinc-900 border border-zinc-700 rounded p-2">
-                  <div
-                    className="aspect-square bg-zinc-800 rounded mb-2 flex items-center justify-center cursor-zoom-in overflow-hidden"
-                    onClick={() => url && setLightbox({ src: url, alt: `${img.name} ${k}` })}
-                  >
-                    {url ? (
-                      <img src={url} alt={k} className="w-full h-full object-contain" loading="lazy" />
-                    ) : (
-                      <span className="text-xs opacity-40">{ratio}</span>
-                    )}
-                  </div>
-                  <div className="text-[11px] font-semibold">{ratio}</div>
-                  <div className="text-[10px] opacity-55 line-clamp-2 mt-0.5">
-                    {SHARED_BY[k]?.slice(0, 2).join("、")}
-                    {SHARED_BY[k]?.length > 2 ? "…" : ""}
-                  </div>
+
+      {/* tab strip */}
+      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3">
+        {images.map((img, i) => {
+          const isActive = active.kind === "image" && active.idx === i;
+          return (
+            <button
+              key={img.id}
+              onClick={() => setActive({ kind: "image", idx: i })}
+              className={`flex-shrink-0 flex items-center gap-2 px-2 py-1.5 rounded border-2 transition ${
+                isActive ? "border-blue-500 bg-zinc-800"
+                         : "border-zinc-700 hover:border-zinc-500 opacity-75 hover:opacity-100"
+              }`}
+              title={img.name}
+            >
+              {img.src_url ? (
+                <img src={img.src_url} alt="" className="w-8 h-8 object-cover rounded" />
+              ) : (
+                <div className="w-8 h-8 bg-zinc-800 rounded" />
+              )}
+              <span className="text-[11px] max-w-[120px] truncate">原图 {i + 1}</span>
+              <span className="text-[10px] opacity-50">
+                {Object.keys(img.master_urls || {}).length}/8
+              </span>
+            </button>
+          );
+        })}
+        {dimEntries.length > 0 && (
+          <button
+            onClick={() => setActive({ kind: "dim" })}
+            className={`flex-shrink-0 flex items-center gap-2 px-2 py-1.5 rounded border-2 transition ${
+              active.kind === "dim" ? "border-indigo-500 bg-zinc-800"
+                                    : "border-indigo-800 hover:border-indigo-500 opacity-75 hover:opacity-100"
+            }`}
+            title="尺寸图（全部）"
+          >
+            <img src={dimEntries[0].url} alt="" className="w-8 h-8 object-cover rounded bg-white" />
+            <span className="text-[11px]">尺寸图</span>
+            <span className="text-[10px] opacity-60">{dimEntries.length}</span>
+          </button>
+        )}
+        <button
+          onClick={() => setActive({ kind: "library" })}
+          className={`flex-shrink-0 flex items-center gap-2 px-2 py-1.5 rounded border-2 transition ${
+            active.kind === "library" ? "border-emerald-500 bg-zinc-800"
+                                      : "border-emerald-800 hover:border-emerald-500 opacity-75 hover:opacity-100"
+          }`}
+          title="图片库（全部）"
+        >
+          <div className="w-8 h-8 grid grid-cols-2 gap-px bg-zinc-700 rounded overflow-hidden">
+            {libraryKeys.slice(0, 4).map((k) => {
+              const o = availableMap.get(k)!;
+              return <img key={k} src={o.url} alt="" className="w-full h-full object-cover" />;
+            })}
+          </div>
+          <span className="text-[11px]">图片库</span>
+          <span className="text-[10px] opacity-60">{libraryKeys.length}</span>
+        </button>
+      </div>
+
+      {/* content */}
+      {active.kind === "image" && (() => {
+        const idx = Math.min(active.idx, images.length - 1);
+        const img = images[idx];
+        const hasCloseup = CLOSEUP_KEYS.some((k) => img.master_urls?.[k]);
+        return (
+          <>
+            <div className="text-[11px] opacity-60 mb-2">{img.name}</div>
+            <div className="text-[10px] opacity-40 mb-1">比例图</div>
+            <div className="grid grid-cols-5 gap-1.5 mb-3">
+              {RATIO_KEYS.map((r) => (
+                <CurationCell
+                  key={r}
+                  {...cellProps(`img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r])}
+                />
+              ))}
+            </div>
+            {hasCloseup && (
+              <>
+                <div className="text-[10px] opacity-40 mb-1">特写图（白底）</div>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {CLOSEUP_KEYS.filter((k) => img.master_urls?.[k]).map((r) => (
+                    <CurationCell
+                      key={r}
+                      {...cellProps(`img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r])}
+                    />
+                  ))}
                 </div>
+              </>
+            )}
+          </>
+        );
+      })()}
+
+      {active.kind === "dim" && (
+        <div>
+          <div className="text-[11px] opacity-60 mb-2">所有尺寸图（{dimEntries.length}）</div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {dimEntries.map((d) => {
+              const label = `${d.style === "white" ? "白底" : "模板"}·原图${d.imgIdx + 1}`;
+              return (
+                <CurationCell
+                  key={d.key}
+                  {...cellProps(`size_${d.key}` as ImageKey, d.url, label, undefined, true)}
+                />
               );
             })}
           </div>
         </div>
-      ))}
+      )}
+
+      {active.kind === "library" && (
+        <div>
+          <div className="text-[11px] opacity-60 mb-2">图片库（{libraryKeys.length}）— 全部图扁平视图</div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {libraryKeys.map((k) => {
+              const o = availableMap.get(k)!;
+              const isDim = k.startsWith("size_");
+              return (
+                <CurationCell
+                  key={k}
+                  {...cellProps(k, o.url, o.label, undefined, isDim)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <Lightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+      )}
+    </div>
+  );
+}
+
+function CurationCell({
+  imageKey, url, label, sub, accent,
+  cur, isThumb, thumbBusy, onToggleThumb, onZoom,
+}: {
+  imageKey: ImageKey;
+  url?: string;
+  label: string;
+  sub?: string;
+  accent?: boolean;
+  cur: ReturnType<typeof useCuration>;
+  isThumb: boolean;
+  thumbBusy: boolean;
+  onToggleThumb: () => void;
+  onZoom: (src: string, alt: string) => void;
+}) {
+  const inMain = cur.isInMain(imageKey);
+  const inDetail = cur.isInDetail(imageKey);
+  return (
+    <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : "border-zinc-700"} rounded p-1.5`}>
+      <div className={`aspect-square rounded mb-1 overflow-hidden ${accent ? "bg-white" : "bg-zinc-800"}`}>
+        {url ? (
+          <RatedImage
+            src={url}
+            alt={label}
+            className="w-full h-full object-contain"
+            onClick={() => onZoom(url, label)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-xs opacity-40">{label}</div>
+        )}
+      </div>
+      <div className={`text-[11px] font-semibold truncate ${accent ? "text-indigo-300" : ""}`} title={label}>{label}</div>
+      {sub && <div className="text-[9px] opacity-50 line-clamp-1 mb-0.5">{sub}</div>}
+      {url && (
+        <div className="flex gap-0.5 mt-0.5">
+          <button
+            onClick={() => cur.toggleMain(imageKey)}
+            className={`flex-1 text-[10px] px-0.5 py-0.5 rounded ${
+              inMain ? "bg-blue-600 text-white" : "bg-zinc-800 hover:bg-zinc-700"
+            }`}
+            title="加入主图列表"
+          >{inMain ? "✓" : "+"}主</button>
+          <button
+            onClick={() => cur.toggleDetail(imageKey)}
+            className={`flex-1 text-[10px] px-0.5 py-0.5 rounded ${
+              inDetail ? "bg-indigo-600 text-white" : "bg-zinc-800 hover:bg-zinc-700"
+            }`}
+            title="加入详情图列表"
+          >{inDetail ? "✓" : "+"}详</button>
+          <button
+            onClick={onToggleThumb}
+            disabled={thumbBusy}
+            className={`flex-1 text-[10px] px-0.5 py-0.5 rounded disabled:opacity-50 ${
+              isThumb ? "bg-amber-500 text-black" : "bg-zinc-800 hover:bg-zinc-700"
+            }`}
+            title="加入 SKU 选图列表"
+          >{isThumb ? "★" : "☆"}卡</button>
+        </div>
       )}
     </div>
   );

@@ -22,12 +22,16 @@ from img2ec.infra.codex_image import (
 from img2ec.infra.comfy_client import ComfyClient, ComfyError
 
 # Master key → workflow file name (under backend/workflows/)
+# 仅 Path A (ComfyUI) 用 workflow 文件。Path C (Codex) 不用，但保持 keys 列表一致。
 MASTER_WORKFLOW_FILES: dict[str, str] = {
     "1x1": "generate_master_1x1.json",
     "long": "generate_master_long.json",
     "3x4": "generate_master_3x4.json",
     "9x16": "generate_master_9x16.json",
     "16x9": "generate_master_16x9.json",
+    "front":  "generate_master_1x1.json",   # 特写：与 1x1 同尺寸 workflow 复用
+    "side":   "generate_master_1x1.json",
+    "detail": "generate_master_1x1.json",
 }
 
 

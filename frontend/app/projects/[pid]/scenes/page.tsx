@@ -33,14 +33,14 @@ export default function ScenesPage() {
           onClick={onImport}
           disabled={importing}
           className="px-3 py-2 text-sm border border-zinc-700 rounded hover:border-blue-500 disabled:opacity-50"
-        >{importing ? "导入中…" : "导入默认 16 场景"}</button>
+        >{importing ? "导入中…" : "导入默认模板"}</button>
         <button onClick={() => setCreating(true)}
-          className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">+ 新建场景</button>
+          className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">+ 新建模板</button>
       </div>
       {scenes && scenes.length === 0 && (
         <div className="opacity-60 text-center py-12">
-          <p className="text-sm">还没场景。点右上「导入默认 16 场景」一键加齐内置库（推荐），</p>
-          <p className="text-xs mt-1">或「新建场景」自己写一个。</p>
+          <p className="text-sm">还没模板。点右上「导入默认模板」一键加齐内置库（推荐），</p>
+          <p className="text-xs mt-1">或「新建模板」自己写一个。</p>
         </div>
       )}
       <div className="grid grid-cols-4 gap-3">

@@ -59,25 +59,32 @@ def _fit_to_target(img: Image.Image, target: tuple[int, int]) -> Image.Image:
 
 
 # Codex/gpt-image-1 supported native sizes — we ask in these so output isn't squished.
-# Master TARGET_DIMENSIONS must match (or be very close to) Codex native to avoid
-# heavy crop. derive.py 派生时会按平台需求 crop/resize 出最终 750×N、1080×1920 等。
 _PROMPT_SIZE_HINT: dict[str, str] = {
+    # 比例图（带场景）
     "1x1":  "1024x1024",
-    "long": "1024x1536",  # Codex 实际最常返回这个 portrait
+    "long": "1024x1536",
     "3x4":  "1024x1536",
     "9x16": "1024x1792",
     "16x9": "1792x1024",
+    # 特写图（白底，多角度）
+    "front":  "1024x1024",
+    "side":   "1024x1024",
+    "detail": "1024x1024",
 }
 
-# Master 输出原生 = Codex 自然出图尺寸；不再硬塞到 750x2000 这种它不会出的形状。
-# derive.py 后续 crop+resize 到平台需求（750w 长图、1080×1920 等）。
 TARGET_DIMENSIONS: dict[str, tuple[int, int]] = {
     "1x1":  (1024, 1024),
     "long": (1024, 1536),
     "3x4":  (1024, 1536),
     "9x16": (1024, 1792),
     "16x9": (1792, 1024),
+    "front":  (1024, 1024),
+    "side":   (1024, 1024),
+    "detail": (1024, 1024),
 }
+
+# 特写图（角度图）：白底，无场景，对商品做不同视角。共用 build_master_prompt。
+CLOSEUP_KEYS = {"front", "side", "detail"}
 
 
 def _run_codex_to_image(
@@ -197,9 +204,115 @@ def generate_master_from_input(
     )
 
 
+def generate_size_diagram(
+    *,
+    source_image: Path,
+    length_cm: float,
+    width_cm: float,
+    height_cm: float,
+    output_path: Path,
+    style: str = "white",  # "white" 纯白底；"template" 用 scene_prompt 描述的场景做背景
+    scene_prompt: str | None = None,
+    timeout: int = 300,
+    codex_bin: str = "codex",
+) -> Path:
+    """Codex 直接生成尺寸示意图：商品本体 + 双向箭头标尺 + 中文尺寸标注。
+
+    style="white"：纯白底（电商规格图标准）
+    style="template"：用 scene_prompt 描述的场景做背景（与 SKU 主图风格一致）
+    """
+    if style == "template" and scene_prompt:
+        bg_clause = (
+            f"(1) background scene: {scene_prompt}. The product sits naturally on a believable surface "
+            f"in this scene, with matched lighting and natural contact shadow"
+        )
+    else:
+        bg_clause = (
+            "(1) clean pure-white (#FFFFFF) background, NO scene, NO surface, NO context, only a soft "
+            "natural contact shadow under the product (10-15% opacity gray)"
+        )
+
+    full_prompt = (
+        f"Generate a single 1024x1024 e-commerce product size-specification diagram. "
+        f"Use the input photo as the reference for the product's exact appearance — preserve "
+        f"every shape, color, pattern and texture detail of the product itself. "
+        f"\n\nLayout requirements: "
+        f"{bg_clause}; "
+        f"(2) the product is centered, occupying ~60% of frame width, fully visible with margin around it; "
+        f"(3) below the product, draw a horizontal black double-headed arrow that spans the product's "
+        f"width only (NOT the full canvas), with the label \"长 {_fmt_cm(length_cm)} cm\" centered "
+        f"below it (large bold sans-serif Chinese font); "
+        f"(4) to the right of the product, draw a vertical black double-headed arrow that spans the "
+        f"product's height only (NOT the full canvas), with the label \"高 {_fmt_cm(height_cm)} cm\" "
+        f"placed to the right of the arrow (rotated 90° if needed); "
+        f"(5) in the bottom-right corner, smaller gray text \"宽 {_fmt_cm(width_cm)} cm（深度）\" "
+        f"indicating depth; "
+        f"(6) the arrows must measure the PRODUCT itself, not the full image frame — start and end "
+        f"exactly at the product's left/right or top/bottom edges; "
+        f"(7) absolutely NO additional product duplicates, NO logos, NO watermark, NO additional text "
+        f"besides the dimension labels; "
+        f"(8) the visual style must look like a professional Chinese e-commerce product specification "
+        f"sheet — sharp lines, accurate measurements; the dimension annotation overlay is on top of the "
+        f"chosen background."
+    )
+    return _run_codex_to_image(
+        full_prompt=full_prompt,
+        input_image=source_image,
+        target_dims=(1024, 1024),
+        output_path=output_path,
+        timeout=timeout,
+        codex_bin=codex_bin,
+    )
+
+
+def _fmt_cm(v: float) -> str:
+    """整数显示无小数点；非整数保留 1 位小数。"""
+    if v == int(v):
+        return str(int(v))
+    return f"{v:.1f}"
+
+
+_CLOSEUP_DIRECTIVE: dict[str, str] = {
+    "front": (
+        "Capture the product straight-on from the FRONT view, head-on perspective, no rotation, "
+        "the most recognizable face of the product directly facing the camera"
+    ),
+    "side": (
+        "Capture the product from the SIDE view (rotated 90° from front), profile angle showing the "
+        "depth and side silhouette of the product"
+    ),
+    "detail": (
+        "Macro close-up shot — zoom in tight on the most distinctive textured area of the product "
+        "(embroidery / fabric weave / pattern / craftsmanship detail). Fill the frame with the texture, "
+        "showing fine surface detail and material quality"
+    ),
+}
+
+
 def build_master_prompt(*, scene_prompt: str, ratio_key: str) -> str:
-    """组装传给 Codex 的完整 prompt（前端 preview 用同一个函数）。"""
+    """组装传给 Codex 的完整 prompt（前端 preview 用同一个函数）。
+
+    - ratio_key ∈ {1x1, long, 3x4, 9x16, 16x9}: 把商品放进 scene_prompt 描述的场景里
+    - ratio_key ∈ {front, side, detail}: 白底特写，忽略 scene_prompt
+    """
     size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
+
+    if ratio_key in CLOSEUP_KEYS:
+        directive = _CLOSEUP_DIRECTIVE[ratio_key]
+        return (
+            f"Generate a single {size_hint} e-commerce product close-up photograph. "
+            f"Use the input image as the exact reference for the product — preserve every shape, "
+            f"color, pattern, embroidery, texture and material detail. "
+            f"\n\nShot: {directive}. "
+            f"\n\nRequirements: "
+            f"(1) pure white (#FFFFFF) studio background, NO scene, NO surface texture, NO context; "
+            f"(2) soft even studio lighting, subtle natural contact shadow only; "
+            f"(3) the product is centered, sharp focus, fills appropriate fraction of frame for the shot; "
+            f"(4) the product must look visually identical to the input (same colors / pattern / material); "
+            f"(5) absolutely NO text, NO logo, NO watermark, NO duplicate products; "
+            f"(6) output a single high-resolution {size_hint} photograph."
+        )
+
     return (
         f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
         f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "

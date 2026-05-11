@@ -45,6 +45,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_session)) -
                 negative_prompt=seed.negative_prompt,
                 ip_adapter_weight=seed.ip_adapter_weight,
                 base_model=seed.base_model,
+                ref_image_path=f"scene_covers/{seed.cover_filename}" if seed.cover_filename else None,
             ))
 
     db.commit()

@@ -15,16 +15,22 @@ router = APIRouter(prefix="/api/skus/{sku_id}/copy", tags=["copy"])
 
 
 def _detail_template_url(db: Session, sku_id: str, platform: str) -> str | None:
-    """Compute the detail template URL if the file exists.
-
-    Path: /static/projects/<project_slug>/<sku_slug>/outputs/<platform>/<image_stem>-detail-template.jpg
+    """产品级详情页 URL（跨变体共享）。
+    带 ?t=<mtime> 防止浏览器缓存（compose 重渲后 URL 不变但文件已变，需要让 img 刷新）。
     """
+    from img2ec.config import get_settings
     sku = db.get(SKU, sku_id)
     proj = db.get(Project, sku.project_id) if sku else None
-    if not (sku and proj and sku.images):
+    if not (sku and proj):
         return None
-    image_stem = Path(sku.images[0].name).stem
-    return f"/static/projects/{fs_slug(proj.name)}/{fs_slug(sku.name)}/outputs/{platform}/{image_stem}-detail-template.jpg"
+    base = f"/static/projects/{fs_slug(proj.name)}/{fs_slug(sku.name)}/outputs/{platform}/detail-template.jpg"
+    file_path = get_settings().root_path / fs_slug(proj.name) / fs_slug(sku.name) / "outputs" / platform / "detail-template.jpg"
+    try:
+        if file_path.exists():
+            return f"{base}?t={int(file_path.stat().st_mtime)}"
+    except OSError:
+        pass
+    return base
 
 
 @router.get("", response_model=list[CopyOut])

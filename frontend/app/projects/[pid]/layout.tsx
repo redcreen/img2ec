@@ -13,7 +13,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const isScene = path?.includes("/scenes");
 
   return (
-    <main className="max-w-6xl mx-auto p-4">
+    <main className="max-w-[1600px] mx-auto p-4">
       <header className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 mb-3">
         <h1 className="text-lg font-bold">img2ec</h1>
         <span className="text-xs opacity-60">
@@ -24,7 +24,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         <Link href={`/projects/${pid}/skus`}
           className={`px-3 py-1.5 text-xs rounded ${isSku ? "bg-blue-600 text-white" : "opacity-60 hover:opacity-100"}`}>SKU</Link>
         <Link href={`/projects/${pid}/scenes`}
-          className={`px-3 py-1.5 text-xs rounded ${isScene ? "bg-blue-600 text-white" : "opacity-60 hover:opacity-100"}`}>场景库</Link>
+          className={`px-3 py-1.5 text-xs rounded ${isScene ? "bg-blue-600 text-white" : "opacity-60 hover:opacity-100"}`}>模板库</Link>
       </header>
       {children}
     </main>

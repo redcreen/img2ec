@@ -32,20 +32,40 @@ export const api = {
   getSku: (pid: string, sid: string) => req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`),
   createSku: (pid: string, payload: { name: string; scene_id?: string | null }) =>
     req<import("./types").SKU>(`/api/projects/${pid}/skus`, { method: "POST", body: JSON.stringify(payload) }),
-  uploadImage: async (pid: string, sid: string, file: File) => {
+  uploadImage: async (pid: string, sid: string, file: File, variantId?: string) => {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`/api/projects/${pid}/skus/${sid}/images`, { method: "POST", body: fd });
+    const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
+    const res = await fetch(`/api/projects/${pid}/skus/${sid}/images${qs}`, { method: "POST", body: fd });
     if (!res.ok) throw new Error(await res.text());
     return res.json() as Promise<import("./types").SKU>;
   },
+  createVariant: (pid: string, sid: string, color_name: string) =>
+    req<{ id: string; color_name: string; status: string }>(
+      `/api/projects/${pid}/skus/${sid}/variants`,
+      { method: "POST", body: JSON.stringify({ color_name }) }
+    ),
+  renameVariant: (pid: string, sid: string, vid: string, color_name: string) =>
+    req<{ id: string; color_name: string; status: string }>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}`,
+      { method: "PATCH", body: JSON.stringify({ color_name }) }
+    ),
+  deleteVariant: (pid: string, sid: string, vid: string) =>
+    req<void>(`/api/projects/${pid}/skus/${sid}/variants/${vid}`, { method: "DELETE" }),
+  setVariantThumbnails: (pid: string, sid: string, vid: string, image_keys: string[]) =>
+    req<{ id: string; sku_thumb_paths: string[]; sku_thumb_path: string | null }>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}/thumbnail`,
+      { method: "POST", body: JSON.stringify({ image_keys }) }
+    ),
   deleteImage: (pid: string, sid: string, iid: string) =>
     req<void>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, { method: "DELETE" }),
-  processSku: (pid: string, sid: string, ratios?: string[]) =>
-    req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process`, {
+  processSku: (pid: string, sid: string, ratios?: string[], variantId?: string) => {
+    const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
+    return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
       body: ratios ? JSON.stringify({ ratios }) : undefined,
-    }),
+    });
+  },
   previewPrompt: (pid: string, sid: string) =>
     req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(
       `/api/projects/${pid}/skus/${sid}/preview-prompt`
@@ -53,10 +73,68 @@ export const api = {
   cancelSku: (pid: string, sid: string) =>
     req<{ ok: boolean }>(`/api/projects/${pid}/skus/${sid}/cancel`, { method: "POST" }),
   deleteSku: (pid: string, sid: string) => req<void>(`/api/projects/${pid}/skus/${sid}`, { method: "DELETE" }),
+  updateDimensions: (pid: string, sid: string, dims: { length_cm: number | null; width_cm: number | null; height_cm: number | null }) =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/dimensions`, { method: "PATCH", body: JSON.stringify(dims) }),
+  regenerateDimension: (pid: string, sid: string, styles: string[], variantId?: string, imageIndices?: number[]) => {
+    const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
+    const body: any = { styles };
+    if (imageIndices && imageIndices.length > 0) body.image_indices = imageIndices;
+    return req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/dimension/regenerate${qs}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  applyDimensionToDetail: (pid: string, sid: string, style: "white" | "template") =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/dimension/apply-to-detail`, {
+      method: "POST",
+      body: JSON.stringify({ style }),
+    }),
+  composeDetail: (pid: string, sid: string, image_keys: string[]) =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/detail/compose`, {
+      method: "POST",
+      body: JSON.stringify({ image_keys }),
+    }),
 
   reveal: (path: string) => req<void>("/api/fs/reveal", { method: "POST", body: JSON.stringify({ path }) }),
   downloadSku: (sid: string) => `/api/skus/${sid}/download`,
   downloadProjectAll: (pid: string) => `/api/projects/${pid}/download-all`,
+  downloadBundle: async (
+    pid: string, sid: string,
+    body: { platform: string; variant_id: string; main_keys: string[]; detail_keys: string[] },
+  ) => _downloadZipPOST(`/api/projects/${pid}/skus/${sid}/download-bundle`, body, `bundle-${sid}.zip`),
+  downloadBundleAll: async (
+    pid: string, sid: string,
+    body: { variant_id: string; main_keys: string[]; detail_keys: string[] },
+  ) => _downloadZipPOST(`/api/projects/${pid}/skus/${sid}/download-bundle-all`, body, `bundle-all-${sid}.zip`),
   listCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy`),
   regenerateCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy/regenerate`, { method: "POST" }),
 };
+
+async function _downloadZipPOST(url: string, body: any, fallbackName: string) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try { const j = await res.json(); detail = j.detail || detail; }
+    catch { detail = await res.text() || detail; }
+    throw new Error(`下载失败：${detail}`);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") || "";
+  // 优先 RFC 5987 UTF-8 文件名
+  let filename = fallbackName;
+  const m5987 = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  if (m5987) filename = decodeURIComponent(m5987[1]);
+  else {
+    const m = cd.match(/filename="([^"]+)"/);
+    if (m) filename = m[1];
+  }
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objUrl; a.download = filename;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(objUrl);
+}

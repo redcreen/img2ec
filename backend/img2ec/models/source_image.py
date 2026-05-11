@@ -18,7 +18,10 @@ class SourceImage(Base, TimestampMixin):
     __tablename__ = "source_images"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    sku_id: Mapped[str] = mapped_column(ForeignKey("skus.id", ondelete="CASCADE"), nullable=False)
+    # variant_id 指向具体颜色变体；老数据迁移时挂到产品默认变体
+    variant_id: Mapped[str] = mapped_column(
+        ForeignKey("variants.id", ondelete="CASCADE"), nullable=False,
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     src_path: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default=ImageStatus.PENDING.value, nullable=False)
@@ -27,4 +30,13 @@ class SourceImage(Base, TimestampMixin):
     master_paths: Mapped[dict] = mapped_column(JSON, default=dict)
     derived_paths: Mapped[dict] = mapped_column(JSON, default=dict)
 
-    sku = relationship("SKU", back_populates="images")
+    variant = relationship("Variant", back_populates="images")
+
+    # 兼容属性：旧代码依赖 img.sku_id / img.sku — 经 variant 转发到 product
+    @property
+    def sku_id(self) -> str:
+        return self.variant.product_id if self.variant else ""
+
+    @property
+    def sku(self):
+        return self.variant.product if self.variant else None

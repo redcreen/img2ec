@@ -20,8 +20,13 @@ def render_detail_page(
     copy: dict,
     images: dict[str, Path],
     output_path: Path,
+    variants: list[dict] | None = None,
 ) -> Path:
-    """Render template → save as JPEG. Returns output_path."""
+    """Render template → save as JPEG. Returns output_path.
+
+    Args:
+        variants: 可选，[{color_name, image_path}, ...]，给 color_comparison module 用
+    """
     canvas_width = template.get("canvas_width", 750)
     ctx = {
         "canvas_width": canvas_width,
@@ -29,6 +34,7 @@ def render_detail_page(
         "font_paths": _font_paths(),
         "copy": copy,
         "images": images,
+        "variants": variants or [],
     }
 
     rendered_blocks: list[Image.Image] = []

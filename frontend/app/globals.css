@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 新生成图片的提示动画：3 次柔和蓝光闪烁 */
+@keyframes pulse-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.6); }
+}
+.animate-pulse-flash {
+  animation: pulse-flash 0.6s ease-in-out 2;
+  border-radius: 0.25rem;
+}

@@ -2,6 +2,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
+import type { Scene } from "@/lib/types";
+import { Lightbox } from "./Lightbox";
 
 const RATIO_ORDER = ["1x1", "long", "3x4", "9x16", "16x9"] as const;
 const RATIO_LABEL: Record<string, string> = {
@@ -12,22 +14,52 @@ const RATIO_LABEL: Record<string, string> = {
   "16x9": "16:9 横版",
 };
 
-export function PromptPreview({ pid, sid }: { pid: string; sid: string }) {
+export function PromptPreview({ pid, sid, scene }: { pid: string; sid: string; scene?: Scene }) {
   const [open, setOpen] = useState(false);
   const [activeRatio, setActiveRatio] = useState<string>("1x1");
+  const [coverLightbox, setCoverLightbox] = useState(false);
   const { data, error } = useSWR(
     open ? `prompt-${sid}` : null,
     () => api.previewPrompt(pid, sid)
   );
 
   return (
-    <div className="mt-3 pt-3 border-t border-zinc-800">
+    <div>
+      {/* 模板信息 inline 展示（折叠态也可见，点缩略图放大） */}
+      <div className="flex items-start gap-3 mb-2">
+        {scene?.cover_url && (
+          <img
+            src={scene.cover_url}
+            alt={scene.name}
+            onClick={() => setCoverLightbox(true)}
+            className="w-20 h-20 rounded object-cover border border-zinc-700 flex-shrink-0 cursor-zoom-in hover:border-blue-500 transition"
+            title="点击查看大图"
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] opacity-50 uppercase mb-0.5">模板</div>
+          {scene ? (
+            <>
+              <div className="text-xs font-semibold">{scene.name}</div>
+              <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.category}</div>
+              <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.desc || scene.prompt.slice(0, 60)}</div>
+            </>
+          ) : (
+            <div className="text-xs opacity-60">未设置模板</div>
+          )}
+        </div>
+      </div>
+
+      {coverLightbox && scene?.cover_url && (
+        <Lightbox src={scene.cover_url} alt={scene.name} onClose={() => setCoverLightbox(false)} />
+      )}
+
       <button
         onClick={() => setOpen(o => !o)}
         className="text-[11px] opacity-70 hover:opacity-100 flex items-center gap-1"
       >
         <span>{open ? "▼" : "▶"}</span>
-        <span>查看完整 Prompt（送给 Codex 的实际指令）</span>
+        <span>查看完整 Prompt（模板 prompt + 送给 Codex 的实际指令）</span>
       </button>
 
       {open && (
@@ -37,7 +69,7 @@ export function PromptPreview({ pid, sid }: { pid: string; sid: string }) {
           {data && (
             <>
               <div className="bg-zinc-950 border border-zinc-700 rounded p-3 text-[11px]">
-                <div className="opacity-50 uppercase text-[10px] mb-1">场景模板</div>
+                <div className="opacity-50 uppercase text-[10px] mb-1">模板</div>
                 <div className="font-semibold mb-1">{data.scene_name}</div>
                 <div className="opacity-80">{data.scene_prompt}</div>
                 {data.negative_prompt && (

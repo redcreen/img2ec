@@ -41,7 +41,7 @@ export function NewProjectModal({
         </div>
         <label className="flex items-center gap-2 text-sm mb-4">
           <input type="checkbox" checked={copyScenes} onChange={e => setCopyScenes(e.target.checked)} />
-          复制默认场景（推荐：内置 1 个"大理石台·暖光"）
+          复制默认模板（白底 + 中式实木桌面·窗光，共 2 个）
         </label>
         {err && <p className="text-red-400 text-xs mb-3">{err}</p>}
         <div className="flex gap-2 justify-end">

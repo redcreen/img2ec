@@ -9,7 +9,7 @@ export function SkuRow({ sku, sceneName }: { sku: SKU; sceneName: string }) {
     sku.status === "running" ? `${done}/${total} 已完成` :
     sku.status === "done" ? `${total * 4} 张输出（4 平台）` :
     sku.status === "error" ? `${done}/${total} 成功，可重试` :
-    `${total} 张原图 / 场景：${sceneName}`;
+    `${total} 张原图 / 模板：${sceneName}`;
 
   return (
     <Link href={`/projects/${sku.project_id}/skus/${sku.id}`}

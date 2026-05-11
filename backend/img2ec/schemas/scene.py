@@ -22,6 +22,7 @@ class SceneOut(BaseModel):
     negative_prompt: str
     ip_adapter_weight: int
     base_model: str
+    cover_url: str | None = None  # routes 注入：代表图 web URL（可空）
     created_at: datetime
     updated_at: datetime
 

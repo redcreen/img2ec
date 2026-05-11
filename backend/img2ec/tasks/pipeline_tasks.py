@@ -22,12 +22,13 @@ class CancelRequested(Exception):
 def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> str:
     settings = get_settings()
     db = SessionLocal()
+    sku: SKU | None = None
     try:
         img: SourceImage | None = db.get(SourceImage, image_id)
         if img is None:
             return "missing"
 
-        sku: SKU = db.get(SKU, img.sku_id)
+        sku = db.get(SKU, img.sku_id)
         project: Project = db.get(Project, sku.project_id)
         scene: Scene | None = db.get(Scene, sku.scene_id) if sku.scene_id else None
         if scene is None:
@@ -89,7 +90,7 @@ def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> 
             img.status = ImageStatus.DONE.value
             img.progress = 100
             db.commit()
-        except CancelRequested as e:
+        except CancelRequested:
             img.status = ImageStatus.FAILED.value
             img.err_msg = "cancelled by user"
             db.commit()
@@ -98,17 +99,18 @@ def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> 
             img.status = ImageStatus.FAILED.value
             img.err_msg = str(e)
             db.commit()
-            raise self.retry(exc=e)
+            return "failed_comfy"
         except Exception as e:
             img.status = ImageStatus.FAILED.value
             img.err_msg = f"{type(e).__name__}: {e}"
             db.commit()
-            raise
+            return "failed"
         finally:
             client.close()
 
         # Phase 2.5: 文案生成（仅在 SKU 全部图都 done 且尚无 copy 时）
-        images = db.query(SourceImage).filter_by(sku_id=sku.id).all()
+        db.refresh(sku)
+        images = list(sku.images)
         all_done = all(i.status == ImageStatus.DONE.value for i in images)
         existing_copy = db.query(PlatformOutputCopy).filter_by(sku_id=sku.id).count()
         if all_done and existing_copy == 0 and images:
@@ -128,26 +130,27 @@ def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> 
                             scene_name=scene.name if scene else "",
                             scene_category=scene.category if scene else "",
                         )
-                        # Persist
                         _persist_copy(db, sku.id, result)
-                        # Phase 2.6: 详情页拼图生成
                         _render_detail_pages(
                             db, sku.id, skud, Path(img.name).stem, img.master_paths or {}
                         )
-                    except LLMProviderError as e:
-                        # 文案失败不阻塞图片输出
-                        # TODO: 记录到 SKU 上一个 warning 字段（V1.1）
+                    except LLMProviderError:
                         pass
             except Exception:
                 pass
 
-        # 聚合 SKU 状态。用户 cancel 优先：保留 cancelled 状态。
-        db.refresh(sku)
-        if sku.status != "cancelled":
-            sku.status = _aggregate_sku_status(sku, db)
-            db.commit()
         return "done"
     finally:
+        # 不论成功/失败/异常，都重新聚合 SKU 状态 —— 防止"卡 running"。
+        # 用户主动 cancel 优先级最高，不被覆盖。
+        try:
+            if sku is not None:
+                db.refresh(sku)
+                if sku.status != "cancelled":
+                    sku.status = _aggregate_sku_status(sku, db)
+                    db.commit()
+        except Exception:
+            pass
         db.close()
 
 
@@ -193,26 +196,43 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
     db.commit()
 
 
-def _render_detail_pages(db, sku_id: str, sku_dir: Path, image_stem: str, master_paths: dict) -> None:
-    """生成 3 平台的详情页拼图并存到 outputs/<platform>/<stem>-detail-template.jpg"""
+def _render_detail_pages(db, sku_id: str, sku_dir: Path, _image_stem: str, master_paths: dict) -> None:
+    """产品级详情页：3 平台各 1 张，文件名固定 detail-template.jpg（跨变体共享）。
+    多变体时自动追加 color_comparison module。
+    """
     from img2ec.core.detail_page import render_detail_page
     from img2ec.core.detail_template import DEFAULT_TEMPLATE
     from img2ec.infra.fs_layout import platform_dir as platform_dir_fn
-    from img2ec.infra.fs_layout import outputs_dir as outputs_dir_fn
-    from img2ec.models import PlatformOutputCopy
+    from img2ec.models import PlatformOutputCopy, SKU
 
     images = {k: Path(v) for k, v in master_paths.items()}
     if "1x1" not in images:
-        return  # need 1x1 for hero
+        return
 
-    # Map each platform to which copy to use
+    # 收集多变体颜色对比用的数据
+    sku = db.get(SKU, sku_id)
+    variants_meta: list[dict] = []
+    if sku and len(sku.variants) > 1:
+        for v in sku.variants:
+            v_img = v.images[0] if v.images else None
+            m_1x1 = (v_img.master_paths or {}).get("1x1") if v_img else None
+            if m_1x1:
+                variants_meta.append({"color_name": v.color_name, "image_path": Path(m_1x1)})
+
+    template = dict(DEFAULT_TEMPLATE)
+    template["modules"] = list(DEFAULT_TEMPLATE["modules"])
+    if len(variants_meta) >= 2:
+        # 在 selling_points 之后插入 color_comparison
+        new_mods = []
+        for m in template["modules"]:
+            new_mods.append(m)
+            if m.get("type") == "selling_points":
+                new_mods.append({"type": "color_comparison", "config": {}})
+        template["modules"] = new_mods
+
     copy_records = {c.platform: c for c in db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()}
-    plat_copy_map = {
-        "douyin": copy_records.get("douyin"),
-        "shipinhao": copy_records.get("shipinhao"),
-        "xiaohongshu": copy_records.get("xiaohongshu"),
-    }
-    for platform, copy_row in plat_copy_map.items():
+    for platform in ("douyin", "shipinhao", "xiaohongshu"):
+        copy_row = copy_records.get(platform)
         if copy_row is None:
             continue
         copy_dict = {
@@ -221,12 +241,13 @@ def _render_detail_pages(db, sku_id: str, sku_dir: Path, image_stem: str, master
             "selling_points": copy_row.selling_points or [],
         }
         try:
-            out_path = platform_dir_fn(sku_dir, platform) / f"{image_stem}-detail-template.jpg"
+            out_path = platform_dir_fn(sku_dir, platform) / "detail-template.jpg"
             render_detail_page(
-                template=DEFAULT_TEMPLATE,
+                template=template,
                 copy=copy_dict,
                 images=images,
                 output_path=out_path,
+                variants=variants_meta,
             )
         except Exception:
-            pass  # 不阻塞图片输出
+            pass

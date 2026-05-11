@@ -80,51 +80,69 @@ def render_title_banner(config: dict, ctx: dict) -> Image.Image:
 
 
 def render_selling_points(config: dict, ctx: dict) -> Image.Image:
-    """3-column grid of selling points (icon stub + title + body)."""
+    """3 卖点纵向堆叠（数字 + 完整卖点文字），自适应高度。
+    旧版用 3 列卡片 + 截断"…"产生的丑陋首行；新版纵向，文字完整展示，每条占一行。"""
     w = ctx["canvas_width"]
-    h = config.get("height", 360)
     bg_color = tuple(config.get("bg_color", [248, 244, 238]))
     card_color = tuple(config.get("card_color", [255, 255, 255]))
-    text_color = tuple(config.get("text_color", [30, 30, 30]))
+    text_color = tuple(config.get("text_color", [40, 40, 40]))
     accent = tuple(config.get("accent_color", [191, 130, 60]))
 
-    canvas = Image.new("RGBA", (w, h), bg_color + (255,))
-    draw = ImageDraw.Draw(canvas)
     points = (ctx["copy"].get("selling_points") or [])[: config.get("max_points", 3)]
     if not points:
-        return canvas
+        return Image.new("RGBA", (w, 60), bg_color + (255,))
 
-    pad = 24
-    gap = 16
-    cards_total = w - pad * 2
-    card_w = (cards_total - gap * (len(points) - 1)) // len(points)
-    card_h = h - pad * 2
-    head_font = _font(ctx, "Bold", 22)
-    body_font = _font(ctx, "Regular", 16)
+    pad_outer = 24       # 卡片外边距
+    pad_card = 24        # 卡片内边距
+    gap = 14             # 卡片间距
+    badge_w = 56         # 左侧编号圆 + 间距
+    body_size = config.get("body_size", 22)
+    body_font = _font(ctx, "Regular", body_size)
+    badge_font = _font(ctx, "Bold", 26)
 
-    for idx, point in enumerate(points):
-        x = pad + idx * (card_w + gap)
-        y = pad
-        draw.rounded_rectangle([x, y, x + card_w, y + card_h], radius=12, fill=card_color + (255,))
-        # Accent dot
-        draw.ellipse([x + card_w // 2 - 12, y + 24, x + card_w // 2 + 12, y + 48], fill=accent + (255,))
-        # Title (first 8 chars as headline)
-        head_text = point[:10] + ("…" if len(point) > 10 else "")
-        draw.text((x + card_w // 2, y + 70), head_text, font=head_font, fill=text_color, anchor="mt")
-        # Body (wrapped full point)
-        body_lines = _wrap(point, body_font, card_w - 24)
-        ty = y + 110
-        for line in body_lines[:4]:
-            draw.text((x + card_w // 2, ty), line, font=body_font, fill=text_color, anchor="mt")
-            ty += 22
+    text_max_w = w - pad_outer * 2 - pad_card * 2 - badge_w
+    line_h = body_size + 8
+
+    # 先算每张卡的高
+    card_layouts: list[tuple[list[str], int]] = []
+    for point in points:
+        lines = _wrap(point, body_font, text_max_w)
+        card_h = max(72, pad_card * 2 + len(lines) * line_h)
+        card_layouts.append((lines, card_h))
+
+    total_h = pad_outer * 2 + sum(c[1] for c in card_layouts) + gap * (len(points) - 1)
+    canvas = Image.new("RGBA", (w, total_h), bg_color + (255,))
+    draw = ImageDraw.Draw(canvas)
+
+    y = pad_outer
+    for idx, (lines, card_h) in enumerate(card_layouts):
+        x = pad_outer
+        right = w - pad_outer
+        bottom = y + card_h
+        draw.rounded_rectangle([x, y, right, bottom], radius=14, fill=card_color + (255,))
+        # 左侧带 accent 色的圆形编号
+        cx, cy = x + pad_card + 18, y + pad_card + 18
+        draw.ellipse([cx - 18, cy - 18, cx + 18, cy + 18], fill=accent + (255,))
+        draw.text((cx, cy), str(idx + 1), font=badge_font, fill=(255, 255, 255), anchor="mm")
+        # 文字（左对齐、纵向居中）
+        text_x = x + pad_card + badge_w
+        block_h = len(lines) * line_h
+        ty = y + (card_h - block_h) // 2
+        for line in lines:
+            draw.text((text_x, ty), line, font=body_font, fill=text_color)
+            ty += line_h
+        y = bottom + gap
 
     return canvas
 
 
 def render_full_image(config: dict, ctx: dict) -> Image.Image:
-    """Full-width long master image."""
+    """Full-width image (按 config._key 取，没有就退回 long → 1x1)。"""
     w = ctx["canvas_width"]
-    img_path = ctx["images"].get("long") or ctx["images"].get("1x1")
+    chosen = config.get("_key")
+    img_path = (
+        ctx["images"].get(chosen) if chosen else None
+    ) or ctx["images"].get("long") or ctx["images"].get("1x1")
     if img_path is None:
         return Image.new("RGBA", (w, 600), (255, 255, 255, 255))
     with Image.open(img_path) as src:
@@ -189,10 +207,104 @@ def _wrap(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
     return lines
 
 
+def render_size_diagram(config: dict, ctx: dict) -> Image.Image:
+    """尺寸图模块：把 dimension 图（白底）等比缩到详情页宽度，带可选标题。
+    images["size_white"] 或 images["size_template"] 之一必须存在。"""
+    w = ctx["canvas_width"]
+    bg_color = tuple(config.get("bg_color", [255, 255, 255]))
+    title_text = config.get("title", "商品尺寸")
+    title_size = config.get("title_size", 26)
+    title_pad = 18
+
+    img_key = config.get("key", "size_white")
+    img_path = ctx["images"].get(img_key) or ctx["images"].get("size_template") or ctx["images"].get("size_white")
+    if img_path is None:
+        return Image.new("RGBA", (w, 60), bg_color + (255,))
+
+    with Image.open(img_path) as src:
+        rgb = src.convert("RGB")
+        ratio = w / rgb.size[0]
+        new_h = int(rgb.size[1] * ratio)
+        resized = rgb.resize((w, new_h), Image.LANCZOS)
+
+    title_font = _font(ctx, "Bold", title_size)
+    title_bbox = title_font.getbbox(title_text)
+    title_h = (title_bbox[3] - title_bbox[1]) + title_pad * 2
+
+    canvas = Image.new("RGBA", (w, new_h + title_h), bg_color + (255,))
+    draw = ImageDraw.Draw(canvas)
+    draw.text((w // 2, title_pad), title_text, font=title_font, fill=(40, 40, 40), anchor="mt")
+    canvas.paste(resized, (0, title_h))
+    return canvas
+
+
+def render_color_comparison(config: dict, ctx: dict) -> Image.Image:
+    """多变体颜色对比块：横排列出每个变体的 1×1 master + 颜色名。
+    ctx["variants"] = [{"color_name": str, "image_path": Path}, ...]
+    < 2 个变体则不渲染（返回 1px 空 canvas）。
+    """
+    w = ctx["canvas_width"]
+    variants = ctx.get("variants", [])
+    bg_color = tuple(config.get("bg_color", [248, 244, 238]))
+    text_color = tuple(config.get("text_color", [30, 30, 30]))
+    label_text = config.get("title", "颜色选择")
+
+    if len(variants) < 2:
+        return Image.new("RGBA", (w, 1), bg_color + (255,))
+
+    pad = 28
+    gap = 14
+    label_size = config.get("label_size", 22)
+    title_size = config.get("title_size", 32)
+    cols = min(len(variants), config.get("max_cols", 4))
+    cell_w = (w - pad * 2 - gap * (cols - 1)) // cols
+    img_h = cell_w
+    label_h = label_size + 16
+    rows = (len(variants) + cols - 1) // cols
+    total_h = pad + (title_size + 16) + (img_h + label_h + gap) * rows - gap + pad
+
+    canvas = Image.new("RGBA", (w, total_h), bg_color + (255,))
+    draw = ImageDraw.Draw(canvas)
+    title_font = _font(ctx, "Bold", title_size)
+    label_font = _font(ctx, "Bold", label_size)
+
+    # 标题
+    draw.text((w // 2, pad), label_text, font=title_font, fill=text_color, anchor="mt")
+
+    y = pad + title_size + 16
+    for i, v in enumerate(variants):
+        col = i % cols
+        row = i // cols
+        x = pad + col * (cell_w + gap)
+        cy = y + row * (img_h + label_h + gap)
+
+        # 商品图（每变体的 1×1）
+        img_path = v.get("image_path")
+        if img_path:
+            try:
+                with Image.open(img_path) as src:
+                    rgb = src.convert("RGB")
+                    rgb_fit = _fit_square(rgb, cell_w)
+                    canvas.paste(rgb_fit, (x, cy))
+            except Exception:
+                draw.rectangle([x, cy, x + cell_w, cy + img_h], fill=(220, 220, 220, 255))
+        else:
+            draw.rectangle([x, cy, x + cell_w, cy + img_h], fill=(220, 220, 220, 255))
+
+        # 颜色名
+        name = v.get("color_name", "")
+        draw.text((x + cell_w // 2, cy + img_h + 8), name,
+                  font=label_font, fill=text_color, anchor="mt")
+
+    return canvas
+
+
 MODULE_RENDERERS: dict[str, ModuleRenderer] = {
     "hero": render_hero,
     "title_banner": render_title_banner,
     "selling_points": render_selling_points,
     "full_image": render_full_image,
     "cta": render_cta,
+    "size_diagram": render_size_diagram,
+    "color_comparison": render_color_comparison,
 }

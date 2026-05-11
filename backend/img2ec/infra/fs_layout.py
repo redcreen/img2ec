@@ -19,6 +19,18 @@ def sku_dir(root: Path, project_name: str, sku_name: str) -> Path:
     return project_dir(root, project_name) / slug(sku_name)
 
 
+def variant_dir(skud: Path, variant) -> Path:
+    """变体所属目录。
+    - 迁移过来的"默认"变体（src_path 在 sku_d/source/ 下）→ 复用 sku_d，保留旧布局
+    - 新建变体（或已用 sku_d/<slug>/source/ 的）→ sku_d/<slug>
+    """
+    if variant.images:
+        first_src = Path(variant.images[0].src_path)
+        if first_src.parent == skud / "source":
+            return skud
+    return skud / slug(variant.color_name)
+
+
 def source_dir(sku_d: Path) -> Path:
     return sku_d / "source"
 
