@@ -23,8 +23,10 @@ def _detail_template_url(db: Session, sku_id: str, platform: str) -> str | None:
     proj = db.get(Project, sku.project_id) if sku else None
     if not (sku and proj):
         return None
-    base = f"/static/projects/{fs_slug(proj.name)}/{fs_slug(sku.name)}/outputs/{platform}/detail-template.jpg"
-    file_path = get_settings().root_path / fs_slug(proj.name) / fs_slug(sku.name) / "outputs" / platform / "detail-template.jpg"
+    # SKU 目录名包含 id 后缀（防同名撞库），与 sku_dir() 保持一致
+    sku_dirname = f"{fs_slug(sku.name)}-{sku.id[:8]}"
+    base = f"/static/projects/{fs_slug(proj.name)}/{sku_dirname}/outputs/{platform}/detail-template.jpg"
+    file_path = get_settings().root_path / fs_slug(proj.name) / sku_dirname / "outputs" / platform / "detail-template.jpg"
     try:
         if file_path.exists():
             return f"{base}?t={int(file_path.stat().st_mtime)}"
