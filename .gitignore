@@ -62,3 +62,6 @@ backend/assets/fonts/*.ttf
 
 # Next.js TS incremental build cache
 frontend/tsconfig.tsbuildinfo
+
+# Local service runtime (pid/log files from scripts/start.sh)
+.logs/
