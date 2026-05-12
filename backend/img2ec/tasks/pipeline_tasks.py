@@ -50,7 +50,7 @@ def process_image_task(
             db.commit()
             return "cancelled"
 
-        skud = sku_dir_fn(Path(project.root_path).parent, project.name, sku.name)
+        skud = sku_dir_fn(Path(project.root_path).parent, project.name, sku.name, sku.id)
         ensure_sku_dirs(skud)
 
         client = ComfyClient(settings.comfy_url, timeout=settings.comfy_timeout)

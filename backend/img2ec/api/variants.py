@@ -73,7 +73,7 @@ def create_variant(
     # 准备目录结构（用 slug(color_name) 作为子目录）
     proj = sku.project
     if proj:
-        skud = sku_dir_fn(Path(proj.root_path).parent, proj.name, sku.name)
+        skud = sku_dir_fn(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
         v_dir = skud / slug(payload.color_name.strip())
         for sub in ("source", "master", "outputs", "cutout"):
             (v_dir / sub).mkdir(parents=True, exist_ok=True)

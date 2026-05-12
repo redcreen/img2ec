@@ -53,9 +53,9 @@ EXPORTS_COMMON=(
 (
   cd "$BACKEND_DIR"
   for kv in "${EXPORTS_COMMON[@]}"; do export "$kv"; done
-  # concurrency=3 平衡 Codex 并发 + 限速
+  # concurrency 默认 4；前端可在线调整（pool_grow/pool_shrink）
   nohup .venv/bin/celery -A img2ec.celery_app worker \
-      --concurrency=3 --loglevel=info \
+      --concurrency=4 --loglevel=info \
       --hostname="$ENV_NAME-worker@%h" \
       >>"$LOG_DIR/$ENV_NAME-worker.log" 2>&1 &
   echo $! > "$LOG_DIR/$ENV_NAME-worker.pid"

@@ -15,8 +15,15 @@ def project_dir(root: Path, project_name: str) -> Path:
     return root / slug(project_name)
 
 
-def sku_dir(root: Path, project_name: str, sku_name: str) -> Path:
-    return project_dir(root, project_name) / slug(sku_name)
+def sku_dir(root: Path, project_name: str, sku_name: str, sku_id: str | None = None) -> Path:
+    """SKU 磁盘目录。新格式包含 id 短缀防止同名 SKU 撞库。
+    - 新建/读取：传 sku_id，落到 <proj>/<sku_name>-<id8>/
+    - 兼容老路径：sku_id 为 None 时退回老格式 <proj>/<sku_name>/（仅迁移脚本使用）
+    """
+    base = project_dir(root, project_name)
+    if sku_id:
+        return base / f"{slug(sku_name)}-{sku_id[:8]}"
+    return base / slug(sku_name)
 
 
 def variant_dir(skud: Path, variant) -> Path:

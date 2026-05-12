@@ -166,12 +166,13 @@ export function MasterGallery({
     k: ImageKey, url: string | undefined, label: string, sub?: string, accent?: boolean,
     versions?: MasterVersion[],
     onDeleteVersion?: (path: string) => void,
+    imgStatus?: string,
   ) => ({
     imageKey: k, url, label, sub, accent,
     cur, isThumb: thumbKeys.includes(k), thumbBusy,
     onToggleThumb: () => toggleThumb(k),
     onZoom: (u: string, alt: string) => setLightbox({ src: u, alt }),
-    versions, onDeleteVersion, deletingPath,
+    versions, onDeleteVersion, deletingPath, imgStatus,
   });
 
   return (
@@ -256,7 +257,7 @@ export function MasterGallery({
                     key={r}
                     {...cellProps(
                       `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
-                      false, versions, (p) => deleteVersion(img.id, r, p),
+                      false, versions, (p) => deleteVersion(img.id, r, p), img.status,
                     )}
                   />
                 );
@@ -273,7 +274,7 @@ export function MasterGallery({
                         key={r}
                         {...cellProps(
                           `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
-                          false, versions, (p) => deleteVersion(img.id, r, p),
+                          false, versions, (p) => deleteVersion(img.id, r, p), img.status,
                         )}
                       />
                     );
@@ -367,7 +368,7 @@ export function MasterGallery({
 function CurationCell({
   imageKey, url, label, sub, accent,
   cur, isThumb, thumbBusy, onToggleThumb, onZoom,
-  versions, onDeleteVersion, deletingPath,
+  versions, onDeleteVersion, deletingPath, imgStatus,
 }: {
   imageKey: ImageKey;
   url?: string;
@@ -382,14 +383,16 @@ function CurationCell({
   versions?: MasterVersion[];
   onDeleteVersion?: (path: string) => void;
   deletingPath?: string | null;
+  imgStatus?: string;
 }) {
   const inMain = cur.isInMain(imageKey);
   const inDetail = cur.isInDetail(imageKey);
   // primary (versions[0]) 和 url 一致时用 url；versions 缺失则纯老逻辑
   const versionList = versions && versions.length > 0 ? versions : (url ? [{ path: "", url }] : []);
   const primaryPath = versionList[0]?.path;
+  const isGenerating = !url && imgStatus && ["pending", "cutting", "generating", "composing"].includes(imgStatus);
   return (
-    <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : "border-zinc-700"} rounded p-1.5`}>
+    <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : isGenerating ? "border-amber-600/60" : "border-zinc-700"} rounded p-1.5`}>
       <div className={`aspect-square rounded mb-1 overflow-hidden relative ${accent ? "bg-white" : "bg-zinc-800"}`}>
         {url ? (
           <RatedImage
@@ -398,6 +401,15 @@ function CurationCell({
             className="w-full h-full object-contain"
             onClick={() => onZoom(url, label)}
           />
+        ) : isGenerating ? (
+          <div className="w-full h-full flex flex-col items-center justify-center text-xs text-amber-200/90 gap-1">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+              <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" />
+            </svg>
+            <span className="text-[10px]">生成中…</span>
+            <span className="text-[9px] opacity-60">{label}</span>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs opacity-40">{label}</div>
         )}

@@ -118,7 +118,7 @@ def download_bundle(project_id: str, sku_id: str, payload: BundleRequest,
         raise HTTPException(400, "invalid platform")
 
     proj = sku.project
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
 
     buf = io.BytesIO()
     counts = {"main": 0, "sku": 0, "detail": 0}
@@ -231,7 +231,7 @@ def download_bundle_all(project_id: str, sku_id: str, payload: BundleAllRequest,
         raise HTTPException(404, "variant not found")
 
     proj = sku.project
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
 
     counts = {"main": 0, "sku": 0, "detail": 0}
     buf = io.BytesIO()
@@ -266,7 +266,7 @@ def download_sku_zip(sku_id: str, db: Session = Depends(get_session)):
         raise HTTPException(404, "sku not found")
     proj = db.get(Project, sku.project_id)
 
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
     outd = outputs_dir(skud)
 
     buf = io.BytesIO()
@@ -295,7 +295,7 @@ def download_project_zip(project_id: str, db: Session = Depends(get_session)):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for sku in done_skus:
-            skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+            skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
             outd = outputs_dir(skud)
             if not outd.exists():
                 continue

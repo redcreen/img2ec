@@ -49,7 +49,7 @@ def _dimension_image_path_for_variant(variant, style: str = "white", image_idx: 
     if style not in DIMENSION_STYLES:
         return None
     from img2ec.infra.fs_layout import variant_dir as variant_dir_fn
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
     vdir = variant_dir_fn(skud, variant)
     image_stem = Path(variant.images[image_idx].name).stem
     return vdir / "outputs" / "dimension" / f"{image_stem}-dimension-{style}.jpg"
@@ -176,7 +176,7 @@ def create_sku(project_id: str, payload: SKUCreate, db: Session = Depends(get_se
         id=str(uuid.uuid4()), product_id=sku.id, color_name="默认", status="draft",
     ))
 
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, payload.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, payload.name, sku.id)
     ensure_sku_dirs(skud)
 
     db.commit()
@@ -202,7 +202,7 @@ def delete_sku(project_id: str, sku_id: str, db: Session = Depends(get_session))
     sku_path = None
     if proj is not None:
         try:
-            sku_path = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+            sku_path = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
         except Exception:
             sku_path = None
     db.delete(sku)
@@ -236,7 +236,7 @@ def upload_image(
         db.flush()
 
     from img2ec.infra.fs_layout import variant_dir as variant_dir_fn
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
     vdir = variant_dir_fn(skud, variant)
     src_d = vdir / "source"
     src_d.mkdir(parents=True, exist_ok=True)
@@ -551,7 +551,7 @@ def compose_detail_page(
     template = {"canvas_width": DEFAULT_TEMPLATE["canvas_width"], "modules": modules}
 
     proj = sku.project
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
     copies = db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()
     if not copies:
         raise HTTPException(400, "no copy generated yet — wait for copy then retry")
@@ -629,7 +629,7 @@ def apply_dimension_to_detail(
     template = {**DEFAULT_TEMPLATE, "modules": modules}
 
     proj = sku.project
-    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+    skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
 
     copies = db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()
     if not copies:

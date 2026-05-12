@@ -166,6 +166,12 @@ export const api = {
     pid: string, sid: string,
     body: { variant_id: string; main_keys: string[]; detail_keys: string[] },
   ) => _downloadZipPOST(`/api/projects/${pid}/skus/${sid}/download-bundle-all`, body, `bundle-all-${sid}.zip`),
+  getConcurrency: () => req<{ current: number | null; min: number; max: number }>(`/api/concurrency`),
+  setConcurrency: (count: number) =>
+    req<{ current: number; previous?: number; delta: number }>(`/api/concurrency`, {
+      method: "POST", body: JSON.stringify({ count }),
+    }),
+
   listCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy`),
   regenerateCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy/regenerate`, { method: "POST" }),
 };

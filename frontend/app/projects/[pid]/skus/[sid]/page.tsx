@@ -11,6 +11,7 @@ import { RatioSelector } from "@/components/RatioSelector";
 import { PromptPreview } from "@/components/PromptPreview";
 import { VariantTabs } from "@/components/VariantTabs";
 import { Lightbox } from "@/components/Lightbox";
+import { ConcurrencyControl } from "@/components/ConcurrencyControl";
 
 export default function SkuDetailPage() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
@@ -187,6 +188,7 @@ export default function SkuDetailPage() {
             </span>
           )}
           <div className="flex-1" />
+          <ConcurrencyControl />
           {sku.status === "running" && (
             <button onClick={onCancel}
               className="px-3 py-2 text-sm border border-amber-500 text-amber-300 rounded font-semibold hover:bg-amber-500/20">
