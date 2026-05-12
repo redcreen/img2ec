@@ -145,15 +145,24 @@ export function MasterGallery({
   };
   const onRegenImage = async (img: SourceImage) => {
     if (tabBusy) return;
-    // 只重生已有的规格；没有任何已生成则提示去 RatioSelector 选
+    // 优先重生已有；空（被全部删除了）→ 默认 5 主比例（不含特写图）
     const existing = Object.keys(img.master_urls || {});
-    if (existing.length === 0) {
-      alert(`「${img.name}」还没生成过任何规格。\n请到上方"生成规格"勾选你想要的规格再生成。`);
-      return;
-    }
+    const ratios = existing.length > 0 ? existing : ["1x1", "long", "3x4", "9x16", "16x9"];
     setTabBusy(true);
     try {
-      const r = await api.regenerateImage(pid, sid, img.id, { ratios: existing });
+      const r = await api.regenerateImage(pid, sid, img.id, { ratios });
+      if (r.skipped_in_flight) alert("该图正在生成中，请等当前批跑完再点");
+      onChanged();
+    } catch (e: any) { alert("提交失败：" + e.message); }
+    finally { setTabBusy(false); }
+  };
+
+  // 单格重生：点空槽位的 ▶ 按钮
+  const onRegenSingle = async (img: SourceImage, ratio: string) => {
+    if (tabBusy) return;
+    setTabBusy(true);
+    try {
+      const r = await api.regenerateImage(pid, sid, img.id, { ratios: [ratio] });
       if (r.skipped_in_flight) alert("该图正在生成中，请等当前批跑完再点");
       onChanged();
     } catch (e: any) { alert("提交失败：" + e.message); }
@@ -228,12 +237,13 @@ export function MasterGallery({
     versions?: MasterVersion[],
     onDeleteVersion?: (path: string) => void,
     imgStatus?: string,
+    onRegenEmpty?: () => void,
   ) => ({
     imageKey: k, url, label, sub, accent,
     cur, isThumb: thumbKeys.includes(k), thumbBusy,
     onToggleThumb: () => toggleThumb(k),
     onZoom: (u: string, alt: string) => setLightbox({ src: u, alt }),
-    versions, onDeleteVersion, deletingPath, imgStatus,
+    versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty,
   });
 
   return (
@@ -334,6 +344,7 @@ export function MasterGallery({
                     {...cellProps(
                       `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
                       false, versions, (p) => deleteVersion(img.id, r, p), img.status,
+                      () => onRegenSingle(img, r),
                     )}
                   />
                 );
@@ -351,6 +362,7 @@ export function MasterGallery({
                         {...cellProps(
                           `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
                           false, versions, (p) => deleteVersion(img.id, r, p), img.status,
+                          () => onRegenSingle(img, r),
                         )}
                       />
                     );
@@ -460,7 +472,7 @@ export function MasterGallery({
 function CurationCell({
   imageKey, url, label, sub, accent,
   cur, isThumb, thumbBusy, onToggleThumb, onZoom,
-  versions, onDeleteVersion, deletingPath, imgStatus,
+  versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty,
 }: {
   imageKey: ImageKey;
   url?: string;
@@ -476,6 +488,7 @@ function CurationCell({
   onDeleteVersion?: (path: string) => void;
   deletingPath?: string | null;
   imgStatus?: string;
+  onRegenEmpty?: () => void;
 }) {
   const inMain = cur.isInMain(imageKey);
   const inDetail = cur.isInDetail(imageKey);
@@ -502,6 +515,16 @@ function CurationCell({
             <span className="text-[10px]">生成中…</span>
             <span className="text-[9px] opacity-60">{label}</span>
           </div>
+        ) : onRegenEmpty ? (
+          <button
+            onClick={onRegenEmpty}
+            className="w-full h-full flex flex-col items-center justify-center gap-1 text-xs opacity-50 hover:opacity-100 hover:bg-blue-600/15 transition group/empty"
+            title={`生成 ${label}`}
+          >
+            <span className="text-2xl opacity-60 group-hover/empty:opacity-100">▶</span>
+            <span className="text-[10px]">{label}</span>
+            <span className="text-[9px] opacity-60">点击生成</span>
+          </button>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs opacity-40">{label}</div>
         )}
