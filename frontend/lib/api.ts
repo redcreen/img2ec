@@ -104,6 +104,26 @@ export const api = {
     `/api/projects/${pid}/skus/${sid}/dimension/delete`,
     { method: "POST", body: JSON.stringify(body) },
   ),
+  // 批删该原图全部 master 版本（含历史）+ 清派生
+  deleteAllMastersForImage: (pid: string, sid: string, iid: string) =>
+    req<import("./types").SKU>(
+      `/api/projects/${pid}/skus/${sid}/images/${iid}/delete-all-masters`,
+      { method: "POST" },
+    ),
+  // 批删变体全部尺寸图
+  deleteAllDimension: (pid: string, sid: string, variantId: string) =>
+    req<import("./types").SKU>(
+      `/api/projects/${pid}/skus/${sid}/dimension/delete-all?variant_id=${encodeURIComponent(variantId)}`,
+      { method: "POST" },
+    ),
+  // 重新生成某张原图的所有规格（背后 process_image_task）
+  regenerateImage: (
+    pid: string, sid: string, iid: string,
+    body?: { ratios?: string[]; extra_prompt?: string; extra_weight?: number },
+  ) => req<{ queued: number; skipped_in_flight: number }>(
+    `/api/projects/${pid}/skus/${sid}/images/${iid}/regenerate`,
+    { method: "POST", body: body ? JSON.stringify(body) : undefined },
+  ),
   processSku: (
     pid: string, sid: string,
     ratios?: string[], variantId?: string,

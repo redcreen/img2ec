@@ -668,10 +668,118 @@ def update_dimensions(
     return _enrich(sku)
 
 
+class RegenerateImageRequest(BaseModel):
+    ratios: list[str] | None = None  # None=全 8 比例
+    extra_prompt: str = ""
+    extra_weight: float = 0.0
+
+
+@router.post("/{sku_id}/images/{image_id}/regenerate", status_code=202)
+def regenerate_single_image(
+    project_id: str, sku_id: str, image_id: str,
+    payload: RegenerateImageRequest | None = None,
+    db: Session = Depends(get_session),
+) -> dict:
+    """重新生成某张原图的全部规格（默认 8 比例，可指定 ratios 子集）。
+    跳过该图当前 in-flight 状态（避免重复入队）。"""
+    from img2ec.models import SourceImage
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    img = db.get(SourceImage, image_id)
+    if img is None:
+        raise HTTPException(404, "image not found")
+    if sku.scene_id is None:
+        raise HTTPException(400, "no scene assigned")
+
+    ratios = (payload.ratios if payload else None) or sorted(VALID_RATIOS)
+    invalid = set(ratios) - VALID_RATIOS
+    if invalid:
+        raise HTTPException(400, f"invalid ratios: {sorted(invalid)}")
+
+    IN_FLIGHT = {ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
+                 ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value}
+    if img.status in IN_FLIGHT:
+        return {"queued": 0, "skipped_in_flight": 1, "image_id": image_id}
+
+    img.status = ImageStatus.PENDING.value
+    img.err_msg = None
+    sku.status = SKUStatus.RUNNING.value
+    db.commit()
+
+    from img2ec.tasks.pipeline_tasks import process_image_task
+    extra_prompt = (payload.extra_prompt if payload else "") or ""
+    extra_weight = float(payload.extra_weight if payload else 0.0)
+    process_image_task.delay(image_id, sorted(ratios), extra_prompt, extra_weight)
+    return {"queued": 1, "skipped_in_flight": 0, "image_id": image_id, "ratios": sorted(ratios)}
+
+
+@router.post("/{sku_id}/images/{image_id}/delete-all-masters", response_model=SKUOut)
+def delete_all_masters_for_image(
+    project_id: str, sku_id: str, image_id: str,
+    db: Session = Depends(get_session),
+) -> dict:
+    """删除该原图下所有 master 版本（含历史 + primary）。物理文件 + DB 一并清。"""
+    from img2ec.models import SourceImage
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    img = db.get(SourceImage, image_id)
+    if img is None:
+        raise HTTPException(404, "image not found")
+
+    # 收集所有要删的路径（master_history 优先，fallback 到 master_paths）
+    all_paths: set[str] = set()
+    for k, lst in (img.master_history or {}).items():
+        for p in lst:
+            if p: all_paths.add(p)
+    for k, p in (img.master_paths or {}).items():
+        if p: all_paths.add(p)
+    for p in all_paths:
+        try: Path(p).unlink()
+        except FileNotFoundError: pass
+        except OSError: pass
+
+    img.master_history = {}
+    img.master_paths = {}
+    # 派生图也清（基于已删的 master）
+    img.derived_paths = {}
+    db.commit()
+    db.refresh(sku)
+    return _enrich(sku)
+
+
 class DimensionDeleteRequest(BaseModel):
     variant_id: str
     style: str  # white | template
     image_idx: int
+
+
+@router.post("/{sku_id}/dimension/delete-all", response_model=SKUOut)
+def delete_all_dimension(
+    project_id: str, sku_id: str,
+    variant_id: str | None = None,
+    db: Session = Depends(get_session),
+) -> dict:
+    """删除该变体（缺省 default）下所有尺寸图文件 + Redis 状态。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    variant = _get_variant_or_default(sku, variant_id)
+    if variant is None:
+        raise HTTPException(404, "variant not found")
+
+    from img2ec.infra import state_store
+    for style in DIMENSION_STYLES:
+        for i in range(len(variant.images)):
+            p = _dimension_image_path_for_variant(variant, style, i)
+            if p and p.exists():
+                try: p.unlink()
+                except OSError: pass
+            state_store.dim_clear(variant.id, f"{style}_img{i}")
+
+    db.refresh(sku)
+    return _enrich(sku)
 
 
 @router.post("/{sku_id}/dimension/delete", status_code=200)

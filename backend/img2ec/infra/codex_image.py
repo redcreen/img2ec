@@ -5,28 +5,51 @@ Replaces ComfyUI Flux for scene background generation. Significantly higher qual
 
 Architecture:
 - subprocess `codex exec` with image-generation prompt
-- Codex saves PNG to ~/.codex/generated_images/<session>/ig_*.png
-- We find the newest PNG after exec and copy/resize to target path
+- Per-call isolated CODEX_HOME (symlinks auth/config from real ~/.codex/);
+  generated images go to <isolated_home>/generated_images/<session>/ig_*.png
+- We pick up the PNG from the isolated home → guarantees zero cross-task contamination
 - Cost: charges against user's ChatGPT/OpenAI Codex subscription
-
-Compared to ComfyUI Flux:
-- ✓ Better visual quality (gpt-image-1 underneath vs Flux dev FP8)
-- ✓ Better light realism (window caustics, soft shadows)
-- ✓ Sharper textures (marble veining, fabric, wood grain)
-- ✗ Slightly slower per call (Codex CLI overhead + cloud latency)
-- ✗ Requires logged-in Codex CLI on the host running the backend
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from PIL import Image
 
 
-CODEX_IMG_DIR = Path.home() / ".codex" / "generated_images"
+REAL_CODEX_HOME = Path.home() / ".codex"
+CODEX_IMG_DIR = REAL_CODEX_HOME / "generated_images"  # 保留全局路径常量给可能的兼容场景
+
+# 真实 CODEX_HOME 里调用 codex 所必需的文件（auth、配置、agent 上下文）。
+# 用 symlink 暴露到隔离 home 里，让 codex 能正常认证/读 config。
+_LINKED_FILES = ("auth.json", "config.toml", "AGENTS.md", "hooks.json")
+_LINKED_DIRS  = ("bin",)
+
+
+@contextmanager
+def _isolated_codex_home():
+    """每次 codex exec 用独立 CODEX_HOME（临时目录），auth/config 软链接过去。
+    保证 generated_images 物理隔离，并发零冲突。"""
+    real = REAL_CODEX_HOME
+    with tempfile.TemporaryDirectory(prefix="img2ec-codex-") as td:
+        tmp = Path(td)
+        for name in _LINKED_FILES:
+            src = real / name
+            if src.exists():
+                try: (tmp / name).symlink_to(src)
+                except OSError: pass
+        for name in _LINKED_DIRS:
+            src = real / name
+            if src.exists():
+                try: (tmp / name).symlink_to(src, target_is_directory=True)
+                except OSError: pass
+        yield tmp
 
 
 class CodexImageError(RuntimeError):
@@ -96,42 +119,55 @@ def _run_codex_to_image(
     timeout: int,
     codex_bin: str,
 ) -> Path:
-    """Shared subprocess machinery: run codex exec, find newest PNG, resize, save."""
-    before_ts = time.time()
-    cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
-    if input_image is not None:
-        cmd.extend(["-i", str(input_image)])
+    """跑 codex exec → 在隔离 CODEX_HOME 里取唯一 PNG → resize 输出。
 
-    try:
-        proc = subprocess.run(
-            cmd,
-            input=full_prompt.encode("utf-8"),
-            capture_output=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise CodexImageError(f"codex exec timed out after {timeout}s") from e
-    except FileNotFoundError as e:
-        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
+    并发零冲突：每次调用用 tempdir 当 CODEX_HOME，generated_images/ 是本次专属，
+    任何其他进程/应用并发跑 Codex 都不影响。
+    """
+    with _isolated_codex_home() as home:
+        cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
+        if input_image is not None:
+            cmd.extend(["-i", str(input_image)])
 
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
-        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+        env = os.environ.copy()
+        env["CODEX_HOME"] = str(home)
 
-    if not CODEX_IMG_DIR.exists():
-        raise CodexImageError(f"codex images dir does not exist: {CODEX_IMG_DIR}")
-    candidates = [p for p in CODEX_IMG_DIR.rglob("*.png") if p.stat().st_mtime >= before_ts - 1]
-    if not candidates:
-        stdout_tail = proc.stdout.decode("utf-8", errors="replace")[-300:]
-        raise CodexImageError(f"no new image produced. stdout tail: {stdout_tail!r}")
-    newest = max(candidates, key=lambda p: p.stat().st_mtime)
+        try:
+            proc = subprocess.run(
+                cmd,
+                input=full_prompt.encode("utf-8"),
+                capture_output=True,
+                timeout=timeout,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise CodexImageError(f"codex exec timed out after {timeout}s") from e
+        except FileNotFoundError as e:
+            raise CodexImageError(f"codex binary not found: {codex_bin}") from e
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with Image.open(newest) as src:
-        rgb = src.convert("RGB")
-        if rgb.size != target_dims:
-            rgb = _fit_to_target(rgb, target_dims)
-        rgb.save(output_path, "JPEG", quality=92)
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
+            raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+
+        # 本次专属 images dir — 不会有任何其他来源的图
+        img_dir = home / "generated_images"
+        candidates: list[Path] = []
+        if img_dir.exists():
+            candidates = list(img_dir.rglob("*.png"))
+        if not candidates:
+            stdout_tail = proc.stdout.decode("utf-8", errors="replace")[-300:]
+            raise CodexImageError(
+                f"no PNG produced in isolated home {home}. stdout tail: {stdout_tail!r}"
+            )
+        # 隔离 home 里通常只会有 1 张；保险起见取最新 mtime
+        newest = max(candidates, key=lambda p: p.stat().st_mtime)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(newest) as src:
+            rgb = src.convert("RGB")
+            if rgb.size != target_dims:
+                rgb = _fit_to_target(rgb, target_dims)
+            rgb.save(output_path, "JPEG", quality=92)
 
     return output_path
 
@@ -167,6 +203,59 @@ def generate_background_image(
         timeout=timeout,
         codex_bin=codex_bin,
     )
+
+
+def _source_to_white_bg(source_image: Path, cache_path: Path | None = None) -> Image.Image:
+    """rembg 去背景 → 白底合成。cache_path 提供时会缓存结果（首次慢 ~2s，后续命中即时）。"""
+    if cache_path and cache_path.exists():
+        with Image.open(cache_path) as im:
+            return im.convert("RGB").copy()
+    from rembg import remove
+    with Image.open(source_image) as src:
+        rgba = remove(src.convert("RGBA"))  # 抠图，返回 RGBA
+    # 白底合成
+    bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    composed = Image.alpha_composite(bg, rgba).convert("RGB")
+    if cache_path:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        composed.save(cache_path, "JPEG", quality=92)
+    return composed
+
+
+def generate_closeup_crop(
+    *,
+    source_image: Path,
+    ratio_key: str,
+    output_path: Path,
+    cutout_cache: Path | None = None,
+) -> Path:
+    """特写图 = 抠图去背景 → 白底合成 → 局部 crop + 放大。**不走 Codex**（不改产品内容）。
+    - front:  中央 70% 方形区
+    - side:   中央偏右 60% 方形区
+    - detail: 中央 35% 紧凑放大
+    cutout_cache：可选 — 命中的白底 jpg 路径（让多张特写共享一次 rembg 抠图，省 ~2s × 2）
+    输出 1024x1024 JPEG。
+    """
+    if ratio_key not in CLOSEUP_KEYS:
+        raise CodexImageError(f"not a closeup key: {ratio_key}")
+    configs = {
+        "front":  (0.70, 0.0, 0.0),
+        "side":   (0.60, 0.18, 0.0),
+        "detail": (0.35, 0.0, 0.08),
+    }
+    frac, ox, oy = configs[ratio_key]
+    rgb = _source_to_white_bg(source_image, cutout_cache)
+    W, H = rgb.size
+    sz = int(min(W, H) * frac)
+    cx = W // 2 + int(W * ox)
+    cy = H // 2 + int(H * oy)
+    left = max(0, min(W - sz, cx - sz // 2))
+    top = max(0, min(H - sz, cy - sz // 2))
+    cropped = rgb.crop((left, top, left + sz, top + sz))
+    out = cropped.resize((1024, 1024), Image.LANCZOS)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    out.save(output_path, "JPEG", quality=92)
+    return output_path
 
 
 def generate_master_from_input(
@@ -311,21 +400,17 @@ def build_master_prompt(
     suffix = _format_extra(extra_prompt, extra_weight)
 
     if ratio_key in CLOSEUP_KEYS:
-        directive = _CLOSEUP_DIRECTIVE[ratio_key]
-        base = (
-            f"Generate a single {size_hint} e-commerce product close-up photograph. "
-            f"Use the input image as the exact reference for the product — preserve every shape, "
-            f"color, pattern, embroidery, texture and material detail. "
-            f"\n\nShot: {directive}. "
-            f"\n\nRequirements: "
-            f"(1) pure white (#FFFFFF) studio background, NO scene, NO surface texture, NO context; "
-            f"(2) soft even studio lighting, subtle natural contact shadow only; "
-            f"(3) the product is centered, sharp focus, fills appropriate fraction of frame for the shot; "
-            f"(4) the product must look visually identical to the input (same colors / pattern / material); "
-            f"(5) absolutely NO text, NO logo, NO watermark, NO duplicate products; "
-            f"(6) output a single high-resolution {size_hint} photograph."
+        # 特写图改为 PIL 局部裁剪 + 放大，不走 Codex。这里只保留一个说明性文本给 preview 用。
+        descriptions = {
+            "front": "中央 70% 方形区裁剪放大（正面）",
+            "side":  "中央偏右 60% 方形区裁剪放大（侧面）",
+            "detail": "中央 35% 紧凑方形区裁剪放大（局部细节）",
+        }
+        return (
+            f"[特写图] {descriptions.get(ratio_key, ratio_key)}\n"
+            f"实现方式：PIL 从原图直接 crop + 放大（不调 Codex，不改图内容）。\n"
+            f"输出尺寸：{size_hint} JPEG。"
         )
-        return base + suffix
 
     base = (
         f"Place this exact product (preserve every embroidery detail, every stitch, every color, "

@@ -15,8 +15,10 @@ from pathlib import Path
 from img2ec.core.composite import composite_cutout_on_background
 from img2ec.core.cutout import cutout_with_rembg
 from img2ec.infra.codex_image import (
+    CLOSEUP_KEYS,
     CodexImageError,
     generate_background_image,
+    generate_closeup_crop,
     generate_master_from_input,
 )
 from img2ec.infra.comfy_client import ComfyClient, ComfyError
@@ -123,7 +125,17 @@ def generate_all_masters(
     for idx, (key, fname) in enumerate(items):
         master_path = _next_version_path(out_dir, image_stem, key)
 
-        if use_codex:
+        if key in CLOSEUP_KEYS:
+            # 特写图：rembg 抠图 + 白底 → 局部裁剪 + 放大，不走 Codex
+            # 缓存白底版到 master/ 同级目录的兄弟 cutout/，多张 closeup 复用
+            cutout_cache = out_dir.parent / "cutout" / f"{image_stem}-white.jpg"
+            generate_closeup_crop(
+                source_image=source_image,
+                ratio_key=key,
+                output_path=master_path,
+                cutout_cache=cutout_cache,
+            )
+        elif use_codex:
             # Path C：源图 + 场景 prompt → 一步出 master（含商品 + 场景 + 自然光照阴影）
             generate_master_from_input(
                 source_image=source_image,

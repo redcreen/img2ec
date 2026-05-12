@@ -134,6 +134,67 @@ export function MasterGallery({
     );
   }
 
+  const [tabBusy, setTabBusy] = useState(false);
+  const onDeleteAllForImage = async (img: SourceImage) => {
+    if (tabBusy) return;
+    if (!confirm(`确认删除「${img.name}」下所有 master 版本？\n（含历史版本 + 派生图，不可撤销）`)) return;
+    setTabBusy(true);
+    try { await api.deleteAllMastersForImage(pid, sid, img.id); onChanged(); }
+    catch (e: any) { alert("批删失败：" + e.message); }
+    finally { setTabBusy(false); }
+  };
+  const onRegenImage = async (img: SourceImage) => {
+    if (tabBusy) return;
+    // 只重生已有的规格；没有任何已生成则提示去 RatioSelector 选
+    const existing = Object.keys(img.master_urls || {});
+    if (existing.length === 0) {
+      alert(`「${img.name}」还没生成过任何规格。\n请到上方"生成规格"勾选你想要的规格再生成。`);
+      return;
+    }
+    setTabBusy(true);
+    try {
+      const r = await api.regenerateImage(pid, sid, img.id, { ratios: existing });
+      if (r.skipped_in_flight) alert("该图正在生成中，请等当前批跑完再点");
+      onChanged();
+    } catch (e: any) { alert("提交失败：" + e.message); }
+    finally { setTabBusy(false); }
+  };
+  const onDeleteAllDim = async () => {
+    if (tabBusy) return;
+    if (!confirm("确认删除该变体下所有尺寸图？\n（不可撤销）")) return;
+    setTabBusy(true);
+    try { await api.deleteAllDimension(pid, sid, variant.id); onChanged(); }
+    catch (e: any) { alert("批删失败：" + e.message); }
+    finally { setTabBusy(false); }
+  };
+  const onRegenAllDim = async () => {
+    if (tabBusy) return;
+    if (!variant.images.length) { alert("没有原图"); return; }
+    // 仅重生**已存在**的 (style, img_idx) 组合
+    const combos: Array<{ style: string; idx: number }> = [];
+    for (const k of Object.keys(variant.dimension_urls || {})) {
+      const m = k.match(/^(white|template)_img(\d+)$/);
+      if (m) combos.push({ style: m[1], idx: parseInt(m[2]) });
+    }
+    if (combos.length === 0) {
+      alert("当前还没生成过任何尺寸图。请到上方「生成规格」勾选尺寸图风格再生成。");
+      return;
+    }
+    setTabBusy(true);
+    try {
+      // 按 style 分组，每个 style 跑自己实际有的 indices
+      const byStyle: Record<string, number[]> = {};
+      for (const { style, idx } of combos) {
+        (byStyle[style] = byStyle[style] || []).push(idx);
+      }
+      for (const [style, indices] of Object.entries(byStyle)) {
+        await api.regenerateDimension(pid, sid, [style], variant.id, indices.sort());
+      }
+      onChanged();
+    } catch (e: any) { alert("提交失败：" + e.message); }
+    finally { setTabBusy(false); }
+  };
+
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const deleteVersion = async (imageId: string, ratio: string, path: string) => {
     if (deletingPath) return;
@@ -247,7 +308,22 @@ export function MasterGallery({
         const hasCloseup = CLOSEUP_KEYS.some((k) => img.master_urls?.[k]);
         return (
           <>
-            <div className="text-[11px] opacity-60 mb-2">{img.name}</div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <div className="text-[11px] opacity-60">{img.name}</div>
+              <div className="flex-1" />
+              <button
+                onClick={() => onRegenImage(img)}
+                disabled={tabBusy}
+                className="text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 disabled:opacity-40"
+                title={`重新生成该原图的全部 8 个规格（保留历史）`}
+              >▶ 重新生成全部</button>
+              <button
+                onClick={() => onDeleteAllForImage(img)}
+                disabled={tabBusy}
+                className="text-[10px] px-2 py-1 rounded bg-red-700/60 hover:bg-red-600 disabled:opacity-40"
+                title="删除该原图下所有 master + 历史 + 派生"
+              >🗑 全部删除</button>
+            </div>
             <div className="text-[10px] opacity-40 mb-1">比例图 <span className="opacity-60">（重新生成保留历史；× 删除版本）</span></div>
             <div className="grid grid-cols-5 gap-1.5 mb-3">
               {RATIO_KEYS.map((r) => {
@@ -288,7 +364,23 @@ export function MasterGallery({
 
       {active.kind === "dim" && (
         <div>
-          <div className="text-[11px] opacity-60 mb-2">所有尺寸图（{dimEntries.length}） · × 删除</div>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="text-[11px] opacity-60">所有尺寸图（{dimEntries.length}）</div>
+            <div className="flex-1" />
+            <button
+              onClick={onRegenAllDim}
+              disabled={tabBusy}
+              className="text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 disabled:opacity-40"
+              title="重生该变体所有原图的全部 style 尺寸图"
+            >▶ 重新生成全部</button>
+            <button
+              onClick={onDeleteAllDim}
+              disabled={tabBusy}
+              className="text-[10px] px-2 py-1 rounded bg-red-700/60 hover:bg-red-600 disabled:opacity-40"
+              title="删除所有尺寸图（不可撤销）"
+            >🗑 全部删除</button>
+          </div>
+          <div className="text-[10px] opacity-40 mb-1">× 单张删除</div>
           <div className="grid grid-cols-5 gap-1.5">
             {dimEntries.map((d) => {
               const label = `${d.style === "white" ? "白底" : "模板"}·原图${d.imgIdx + 1}`;
