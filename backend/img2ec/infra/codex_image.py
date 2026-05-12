@@ -26,18 +26,40 @@ from PIL import Image
 REAL_CODEX_HOME = Path.home() / ".codex"
 CODEX_IMG_DIR = REAL_CODEX_HOME / "generated_images"  # 保留全局路径常量给可能的兼容场景
 
+# 隔离 home 的父目录 — 固定位置便于启动时清理孤儿
+ISOLATED_HOMES_ROOT = Path("/tmp/img2ec-codex")
 # 真实 CODEX_HOME 里调用 codex 所必需的文件（auth、配置、agent 上下文）。
 # 用 symlink 暴露到隔离 home 里，让 codex 能正常认证/读 config。
 _LINKED_FILES = ("auth.json", "config.toml", "AGENTS.md", "hooks.json")
 _LINKED_DIRS  = ("bin",)
 
 
+def cleanup_orphan_codex_homes(max_age_seconds: int = 3600) -> int:
+    """删除 ISOLATED_HOMES_ROOT 下所有超过 max_age_seconds 的孤儿 home。
+    正常路径下 TemporaryDirectory 退出会自清；这个是兜底（SIGKILL / 崩溃后的泄漏）。
+    返回清掉的目录数。"""
+    if not ISOLATED_HOMES_ROOT.exists():
+        return 0
+    now = time.time()
+    removed = 0
+    for child in ISOLATED_HOMES_ROOT.iterdir():
+        try:
+            if child.is_dir() and (now - child.stat().st_mtime) > max_age_seconds:
+                shutil.rmtree(child, ignore_errors=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 @contextmanager
 def _isolated_codex_home():
     """每次 codex exec 用独立 CODEX_HOME（临时目录），auth/config 软链接过去。
-    保证 generated_images 物理隔离，并发零冲突。"""
+    保证 generated_images 物理隔离，并发零冲突。
+    退出 with 块自动清；崩溃泄漏由 cleanup_orphan_codex_homes() 兜底。"""
     real = REAL_CODEX_HOME
-    with tempfile.TemporaryDirectory(prefix="img2ec-codex-") as td:
+    ISOLATED_HOMES_ROOT.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="home-", dir=str(ISOLATED_HOMES_ROOT)) as td:
         tmp = Path(td)
         for name in _LINKED_FILES:
             src = real / name

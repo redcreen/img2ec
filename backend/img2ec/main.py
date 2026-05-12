@@ -32,6 +32,17 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.on_event("startup")
+    def _cleanup_codex_orphans():
+        try:
+            from img2ec.infra.codex_image import cleanup_orphan_codex_homes
+            n = cleanup_orphan_codex_homes(max_age_seconds=3600)
+            if n:
+                import logging
+                logging.info(f"[img2ec] cleaned {n} orphan codex home dirs on uvicorn boot")
+        except Exception:
+            pass
+
     # Mount static files for detail-page templates and other project assets.
     # /static/projects/<project_name>/<sku_name>/... maps to <root_path>/<project_name>/<sku_name>/...
     # check_dir=False so the app starts even if root_path doesn't exist yet (created on first project)
