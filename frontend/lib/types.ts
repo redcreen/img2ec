@@ -20,9 +20,25 @@ export interface Scene {
   ip_adapter_weight: number;
   base_model: string;
   cover_url: string | null;
+  festival?: string;
+  created_by?: string;
 }
 
-export type ImageStatus = "pending" | "cutting" | "generating" | "composing" | "done" | "failed";
+export const FESTIVALS = ["通用", "春节", "元宵", "端午", "七夕", "中秋", "重阳", "腊八"] as const;
+export type Festival = (typeof FESTIVALS)[number];
+
+export interface AIPreview {
+  name: string;
+  desc: string;
+  prompt: string;
+  negative_prompt: string;
+  festival: string;
+  cover_path: string;
+  cover_url: string;
+  raw_text: string;
+}
+
+export type ImageStatus = "ready" | "pending" | "cutting" | "generating" | "composing" | "done" | "failed";
 
 export interface SourceImage {
   id: string;
@@ -35,6 +51,7 @@ export interface SourceImage {
   derived_paths: Record<string, string>;
   src_url: string | null;
   master_urls: Record<string, string>;
+  master_history_urls?: Record<string, Array<{ path: string; url: string }>>;  // 多版本
   derived_urls: Record<string, string>;
 }
 

@@ -6,7 +6,8 @@ from img2ec.models.base import Base, TimestampMixin
 
 
 class ImageStatus(str, Enum):
-    PENDING = "pending"
+    READY = "ready"           # 上传完毕，未开始处理（不是 running）
+    PENDING = "pending"       # 已加入队列，等 worker（属于 running）
     CUTTING = "cutting"
     GENERATING = "generating"
     COMPOSING = "composing"
@@ -24,10 +25,12 @@ class SourceImage(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     src_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default=ImageStatus.PENDING.value, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default=ImageStatus.READY.value, nullable=False)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     err_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
     master_paths: Mapped[dict] = mapped_column(JSON, default=dict)
+    # master_history[ratio] = [path_newest, ..., path_oldest]  始终包含 master_paths[ratio] 作首项
+    master_history: Mapped[dict] = mapped_column(JSON, default=dict)
     derived_paths: Mapped[dict] = mapped_column(JSON, default=dict)
 
     variant = relationship("Variant", back_populates="images")

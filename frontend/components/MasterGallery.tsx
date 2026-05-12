@@ -7,6 +7,8 @@ import type { SourceImage, Variant } from "@/lib/types";
 import { Lightbox } from "./Lightbox";
 import { RatedImage } from "./RatedImage";
 
+interface MasterVersion { path: string; url: string; }
+
 const RATIO_KEYS = ["1x1", "long", "3x4", "9x16", "16x9"] as const;
 const CLOSEUP_KEYS = ["front", "side", "detail"] as const;
 const RATIO_LABEL: Record<string, string> = {
@@ -132,11 +134,44 @@ export function MasterGallery({
     );
   }
 
-  const cellProps = (k: ImageKey, url: string | undefined, label: string, sub?: string, accent?: boolean) => ({
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
+  const deleteVersion = async (imageId: string, ratio: string, path: string) => {
+    if (deletingPath) return;
+    if (!confirm(`确认删除该版本？\n（文件会从磁盘移除，无法撤销）`)) return;
+    setDeletingPath(path);
+    try {
+      await api.deleteMasterVersion(pid, sid, { image_id: imageId, ratio, path });
+      onChanged();
+    } catch (e: any) {
+      alert("删除失败：" + e.message);
+    } finally {
+      setDeletingPath(null);
+    }
+  };
+  const deleteDim = async (style: string, imageIdx: number, sentinel: string) => {
+    if (deletingPath) return;
+    if (!confirm(`确认删除该尺寸图？\n（文件会从磁盘移除，无法撤销）`)) return;
+    setDeletingPath(sentinel);
+    try {
+      await api.deleteDimensionImage(pid, sid, { variant_id: variant.id, style, image_idx: imageIdx });
+      onChanged();
+    } catch (e: any) {
+      alert("删除失败：" + e.message);
+    } finally {
+      setDeletingPath(null);
+    }
+  };
+
+  const cellProps = (
+    k: ImageKey, url: string | undefined, label: string, sub?: string, accent?: boolean,
+    versions?: MasterVersion[],
+    onDeleteVersion?: (path: string) => void,
+  ) => ({
     imageKey: k, url, label, sub, accent,
     cur, isThumb: thumbKeys.includes(k), thumbBusy,
     onToggleThumb: () => toggleThumb(k),
     onZoom: (u: string, alt: string) => setLightbox({ src: u, alt }),
+    versions, onDeleteVersion, deletingPath,
   });
 
   return (
@@ -212,25 +247,37 @@ export function MasterGallery({
         return (
           <>
             <div className="text-[11px] opacity-60 mb-2">{img.name}</div>
-            <div className="text-[10px] opacity-40 mb-1">比例图</div>
+            <div className="text-[10px] opacity-40 mb-1">比例图 <span className="opacity-60">（重新生成保留历史；× 删除版本）</span></div>
             <div className="grid grid-cols-5 gap-1.5 mb-3">
-              {RATIO_KEYS.map((r) => (
-                <CurationCell
-                  key={r}
-                  {...cellProps(`img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r])}
-                />
-              ))}
+              {RATIO_KEYS.map((r) => {
+                const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                return (
+                  <CurationCell
+                    key={r}
+                    {...cellProps(
+                      `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
+                      false, versions, (p) => deleteVersion(img.id, r, p),
+                    )}
+                  />
+                );
+              })}
             </div>
             {hasCloseup && (
               <>
                 <div className="text-[10px] opacity-40 mb-1">特写图（白底）</div>
                 <div className="grid grid-cols-5 gap-1.5">
-                  {CLOSEUP_KEYS.filter((k) => img.master_urls?.[k]).map((r) => (
-                    <CurationCell
-                      key={r}
-                      {...cellProps(`img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r])}
-                    />
-                  ))}
+                  {CLOSEUP_KEYS.filter((k) => img.master_urls?.[k]).map((r) => {
+                    const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                    return (
+                      <CurationCell
+                        key={r}
+                        {...cellProps(
+                          `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
+                          false, versions, (p) => deleteVersion(img.id, r, p),
+                        )}
+                      />
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -240,14 +287,19 @@ export function MasterGallery({
 
       {active.kind === "dim" && (
         <div>
-          <div className="text-[11px] opacity-60 mb-2">所有尺寸图（{dimEntries.length}）</div>
+          <div className="text-[11px] opacity-60 mb-2">所有尺寸图（{dimEntries.length}） · × 删除</div>
           <div className="grid grid-cols-5 gap-1.5">
             {dimEntries.map((d) => {
               const label = `${d.style === "white" ? "白底" : "模板"}·原图${d.imgIdx + 1}`;
+              const sentinel = `dim:${d.key}`;
               return (
                 <CurationCell
                   key={d.key}
-                  {...cellProps(`size_${d.key}` as ImageKey, d.url, label, undefined, true)}
+                  {...cellProps(
+                    `size_${d.key}` as ImageKey, d.url, label, undefined, true,
+                    [{ path: sentinel, url: d.url }],
+                    () => deleteDim(d.style, d.imgIdx, sentinel),
+                  )}
                 />
               );
             })}
@@ -257,16 +309,48 @@ export function MasterGallery({
 
       {active.kind === "library" && (
         <div>
-          <div className="text-[11px] opacity-60 mb-2">图片库（{libraryKeys.length}）— 全部图扁平视图</div>
+          <div className="text-[11px] opacity-60 mb-2">图片库（{libraryKeys.length}）— 全部图扁平视图 · × 删除</div>
           <div className="grid grid-cols-5 gap-1.5">
             {libraryKeys.map((k) => {
               const o = availableMap.get(k)!;
               const isDim = k.startsWith("size_");
+              if (isDim) {
+                // size_<style>_img<N>
+                const m = k.match(/^size_(white|template)_img(\d+)$/);
+                if (m) {
+                  const style = m[1]; const imgIdx = parseInt(m[2]);
+                  const sentinel = `dim:${style}_img${imgIdx}`;
+                  return (
+                    <CurationCell
+                      key={k}
+                      {...cellProps(
+                        k, o.url, o.label, undefined, true,
+                        [{ path: sentinel, url: o.url }],
+                        () => deleteDim(style, imgIdx, sentinel),
+                      )}
+                    />
+                  );
+                }
+              } else {
+                // img<idx>:<ratio>
+                const m = k.match(/^img(\d+):(.+)$/);
+                if (m) {
+                  const idx = parseInt(m[1]); const ratio = m[2];
+                  const img = images[idx];
+                  const versions = (img?.master_history_urls?.[ratio] || []) as MasterVersion[];
+                  return (
+                    <CurationCell
+                      key={k}
+                      {...cellProps(
+                        k, o.url, o.label, undefined, false,
+                        versions, (p) => img && deleteVersion(img.id, ratio, p),
+                      )}
+                    />
+                  );
+                }
+              }
               return (
-                <CurationCell
-                  key={k}
-                  {...cellProps(k, o.url, o.label, undefined, isDim)}
-                />
+                <CurationCell key={k} {...cellProps(k, o.url, o.label, undefined, isDim)} />
               );
             })}
           </div>
@@ -283,6 +367,7 @@ export function MasterGallery({
 function CurationCell({
   imageKey, url, label, sub, accent,
   cur, isThumb, thumbBusy, onToggleThumb, onZoom,
+  versions, onDeleteVersion, deletingPath,
 }: {
   imageKey: ImageKey;
   url?: string;
@@ -294,12 +379,18 @@ function CurationCell({
   thumbBusy: boolean;
   onToggleThumb: () => void;
   onZoom: (src: string, alt: string) => void;
+  versions?: MasterVersion[];
+  onDeleteVersion?: (path: string) => void;
+  deletingPath?: string | null;
 }) {
   const inMain = cur.isInMain(imageKey);
   const inDetail = cur.isInDetail(imageKey);
+  // primary (versions[0]) 和 url 一致时用 url；versions 缺失则纯老逻辑
+  const versionList = versions && versions.length > 0 ? versions : (url ? [{ path: "", url }] : []);
+  const primaryPath = versionList[0]?.path;
   return (
     <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : "border-zinc-700"} rounded p-1.5`}>
-      <div className={`aspect-square rounded mb-1 overflow-hidden ${accent ? "bg-white" : "bg-zinc-800"}`}>
+      <div className={`aspect-square rounded mb-1 overflow-hidden relative ${accent ? "bg-white" : "bg-zinc-800"}`}>
         {url ? (
           <RatedImage
             src={url}
@@ -310,7 +401,44 @@ function CurationCell({
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs opacity-40">{label}</div>
         )}
+        {url && versionList.length > 1 && (
+          <span className="absolute top-0.5 left-0.5 text-[9px] bg-zinc-900/80 text-zinc-100 px-1 rounded">
+            v{versionList.length}/{versionList.length}
+          </span>
+        )}
+        {url && onDeleteVersion && primaryPath && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteVersion(primaryPath); }}
+            disabled={deletingPath === primaryPath}
+            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[10px] leading-none disabled:opacity-50"
+            title={versionList.length > 1 ? "删除当前版本（下一个版本自动升主）" : "删除该规格图"}
+          >×</button>
+        )}
       </div>
+      {/* 历史版本条（除 primary 之外的旧版） */}
+      {versionList.length > 1 && (
+        <div className="flex gap-0.5 mb-1 overflow-x-auto pb-0.5">
+          {versionList.slice(1).map((v, i) => (
+            <div key={v.path} className="relative flex-shrink-0">
+              <img
+                src={v.url}
+                alt=""
+                className="w-8 h-8 object-cover rounded border border-zinc-700 cursor-zoom-in opacity-80"
+                onClick={() => onZoom(v.url, `${label} v${versionList.length - 1 - i}`)}
+                title={`旧版本 v${versionList.length - 1 - i}`}
+              />
+              {onDeleteVersion && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDeleteVersion(v.path); }}
+                  disabled={deletingPath === v.path}
+                  className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[8px] leading-none disabled:opacity-50"
+                  title="删除该旧版本"
+                >×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div className={`text-[11px] font-semibold truncate ${accent ? "text-indigo-300" : ""}`} title={label}>{label}</div>
       {sub && <div className="text-[9px] opacity-50 line-clamp-1 mb-0.5">{sub}</div>}
       {url && (

@@ -177,6 +177,8 @@ def generate_master_from_input(
     output_path: Path,
     timeout: int = 300,
     codex_bin: str = "codex",
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
 ) -> Path:
     """Path C — Codex 直接 image-to-image：商品 + 场景一步出图。
 
@@ -193,7 +195,10 @@ def generate_master_from_input(
     if target_dims is None:
         raise CodexImageError(f"unknown ratio_key: {ratio_key}")
 
-    full_prompt = build_master_prompt(scene_prompt=scene_prompt, ratio_key=ratio_key)
+    full_prompt = build_master_prompt(
+        scene_prompt=scene_prompt, ratio_key=ratio_key,
+        extra_prompt=extra_prompt, extra_weight=extra_weight,
+    )
     return _run_codex_to_image(
         full_prompt=full_prompt,
         input_image=source_image,
@@ -289,17 +294,25 @@ _CLOSEUP_DIRECTIVE: dict[str, str] = {
 }
 
 
-def build_master_prompt(*, scene_prompt: str, ratio_key: str) -> str:
+def build_master_prompt(
+    *,
+    scene_prompt: str,
+    ratio_key: str,
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
+) -> str:
     """组装传给 Codex 的完整 prompt（前端 preview 用同一个函数）。
 
     - ratio_key ∈ {1x1, long, 3x4, 9x16, 16x9}: 把商品放进 scene_prompt 描述的场景里
     - ratio_key ∈ {front, side, detail}: 白底特写，忽略 scene_prompt
+    - extra_prompt / extra_weight: 用户附加诉求，权重 0..1 控制强调程度
     """
     size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
+    suffix = _format_extra(extra_prompt, extra_weight)
 
     if ratio_key in CLOSEUP_KEYS:
         directive = _CLOSEUP_DIRECTIVE[ratio_key]
-        return (
+        base = (
             f"Generate a single {size_hint} e-commerce product close-up photograph. "
             f"Use the input image as the exact reference for the product — preserve every shape, "
             f"color, pattern, embroidery, texture and material detail. "
@@ -312,8 +325,9 @@ def build_master_prompt(*, scene_prompt: str, ratio_key: str) -> str:
             f"(5) absolutely NO text, NO logo, NO watermark, NO duplicate products; "
             f"(6) output a single high-resolution {size_hint} photograph."
         )
+        return base + suffix
 
-    return (
+    base = (
         f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
         f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
         f"\n\nScene: {scene_prompt}\n\n"
@@ -327,3 +341,50 @@ def build_master_prompt(*, scene_prompt: str, ratio_key: str) -> str:
         f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
         f"(6) output a single high-resolution {size_hint} photograph."
     )
+    return base + suffix
+
+
+def _format_extra(extra_prompt: str, weight: float) -> str:
+    """把用户附加 prompt 按权重转成强调级别字符串，附加到 base prompt 后。"""
+    txt = (extra_prompt or "").strip()
+    if not txt:
+        return ""
+    w = max(0.0, min(1.0, float(weight or 0.0)))
+    if w < 0.25:
+        emphasis = "Light preference (apply if it does not conflict with the rules above)"
+    elif w < 0.55:
+        emphasis = "Moderate emphasis"
+    elif w < 0.85:
+        emphasis = "Strong emphasis"
+    else:
+        emphasis = "HARD CONSTRAINT (must satisfy)"
+    return (
+        f"\n\nAdditional user instruction ({emphasis}, weight={w:.2f}): {txt}"
+    )
+
+
+def codex_text(
+    *,
+    prompt: str,
+    input_image: Path | None = None,
+    timeout: int = 90,
+    codex_bin: str = "codex",
+) -> str:
+    """Run Codex CLI in text-output mode (no image expected).
+    Returns stdout text. Used for vision/describe + prompt-expansion endpoints."""
+    cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
+    if input_image is not None:
+        cmd.extend(["-i", str(input_image)])
+    try:
+        proc = subprocess.run(
+            cmd, input=prompt.encode("utf-8"),
+            capture_output=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise CodexImageError(f"codex exec timed out after {timeout}s") from e
+    except FileNotFoundError as e:
+        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
+        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+    return proc.stdout.decode("utf-8", errors="replace")

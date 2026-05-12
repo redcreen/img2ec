@@ -42,6 +42,20 @@ def _collect_output_images(history: dict) -> list[dict]:
     return out
 
 
+def _next_version_path(out_dir: Path, image_stem: str, key: str) -> Path:
+    """Pick next unused filename for this (image, ratio).
+    First gen → <stem>-<key>.jpg; later regens → <stem>-<key>-v2.jpg, -v3.jpg, ..."""
+    base = out_dir / f"{image_stem}-{key}.jpg"
+    if not base.exists():
+        return base
+    v = 2
+    while True:
+        cand = out_dir / f"{image_stem}-{key}-v{v}.jpg"
+        if not cand.exists():
+            return cand
+        v += 1
+
+
 def _generate_background(
     *,
     client: ComfyClient,
@@ -88,6 +102,8 @@ def generate_all_masters(
     use_codex: bool = True,
     on_master_done: "callable | None" = None,
     ratios: "list[str] | None" = None,
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
 ) -> dict[str, Path]:
     """Codex image-to-image 出 master。`ratios` 限定生成哪些尺寸（None=全部 5 张）。"""
     del ip_weight, seed  # unused
@@ -105,7 +121,7 @@ def generate_all_masters(
     cutout_path: Path | None = None
 
     for idx, (key, fname) in enumerate(items):
-        master_path = out_dir / f"{image_stem}-{key}.jpg"
+        master_path = _next_version_path(out_dir, image_stem, key)
 
         if use_codex:
             # Path C：源图 + 场景 prompt → 一步出 master（含商品 + 场景 + 自然光照阴影）
@@ -114,6 +130,8 @@ def generate_all_masters(
                 scene_prompt=prompt,
                 ratio_key=key,
                 output_path=master_path,
+                extra_prompt=extra_prompt,
+                extra_weight=extra_weight,
             )
         else:
             # Path A fallback：抠图 + AI bg + PIL composite
@@ -142,7 +160,7 @@ def generate_all_masters(
 
         paths[key] = master_path
         if on_master_done is not None:
-            on_master_done(key, idx + 1, total)
+            on_master_done(key, master_path, idx + 1, total)
 
     return paths
 

@@ -28,6 +28,37 @@ export const api = {
   importDefaultScenes: (pid: string) =>
     req<import("./types").Scene[]>(`/api/projects/${pid}/scenes/import-defaults`, { method: "POST" }),
 
+  // AI 模板：关键词扩展（5–60s）—— 同步预览版
+  aiExpandKeywords: (pid: string, body: { keywords: string[]; festival: string; style: string }) =>
+    req<import("./types").AIPreview>(
+      `/api/projects/${pid}/scenes-ai/expand-from-keywords`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  // AI 模板：关键词扩展（fire-and-forget，立即返回占位 scene_id）
+  aiQueueKeywords: (pid: string, body: { keywords: string[]; festival: string; style: string }) =>
+    req<{ scene_id: string; festival: string }>(
+      `/api/projects/${pid}/scenes-ai/queue-from-keywords`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  // AI 模板：批量生成 N 个（占位立即返回，后台 8-15 分钟跑完）
+  aiBatchGenerate: (pid: string, body: { festival: string; count?: number }) =>
+    req<{ scene_ids: string[]; count: number; festival: string }>(
+      `/api/projects/${pid}/scenes-ai/batch-generate`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  // AI 模板：参考图反推（5–60s + ~50s 出 cover ≈ 90s）
+  aiExpandReference: async (pid: string, file: File, festival: string, style: string) => {
+    const fd = new FormData();
+    fd.append("reference", file);
+    fd.append("festival", festival);
+    fd.append("style", style);
+    const res = await fetch(`/api/projects/${pid}/scenes-ai/expand-from-reference`, {
+      method: "POST", body: fd,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<import("./types").AIPreview>;
+  },
+
   listSkus: (pid: string) => req<import("./types").SKU[]>(`/api/projects/${pid}/skus`),
   getSku: (pid: string, sid: string) => req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`),
   createSku: (pid: string, payload: { name: string; scene_id?: string | null }) =>
@@ -59,17 +90,46 @@ export const api = {
     ),
   deleteImage: (pid: string, sid: string, iid: string) =>
     req<void>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, { method: "DELETE" }),
-  processSku: (pid: string, sid: string, ratios?: string[], variantId?: string) => {
+  deleteMasterVersion: (
+    pid: string, sid: string,
+    body: { image_id: string; ratio: string; path: string },
+  ) => req<import("./types").SKU>(
+    `/api/projects/${pid}/skus/${sid}/master-versions/delete`,
+    { method: "POST", body: JSON.stringify(body) },
+  ),
+  deleteDimensionImage: (
+    pid: string, sid: string,
+    body: { variant_id: string; style: string; image_idx: number },
+  ) => req<import("./types").SKU>(
+    `/api/projects/${pid}/skus/${sid}/dimension/delete`,
+    { method: "POST", body: JSON.stringify(body) },
+  ),
+  processSku: (
+    pid: string, sid: string,
+    ratios?: string[], variantId?: string,
+    extra?: { prompt: string; weight: number },
+  ) => {
     const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
+    const body: any = {};
+    if (ratios) body.ratios = ratios;
+    if (extra && extra.prompt.trim()) {
+      body.extra_prompt = extra.prompt;
+      body.extra_weight = extra.weight;
+    }
     return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
-      body: ratios ? JSON.stringify({ ratios }) : undefined,
+      body: Object.keys(body).length ? JSON.stringify(body) : undefined,
     });
   },
-  previewPrompt: (pid: string, sid: string) =>
-    req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(
-      `/api/projects/${pid}/skus/${sid}/preview-prompt`
-    ),
+  previewPrompt: (pid: string, sid: string, extraPrompt = "", extraWeight = 0) => {
+    const qs = new URLSearchParams();
+    if (extraPrompt) {
+      qs.set("extra_prompt", extraPrompt);
+      qs.set("extra_weight", String(extraWeight));
+    }
+    const url = `/api/projects/${pid}/skus/${sid}/preview-prompt${qs.toString() ? "?" + qs.toString() : ""}`;
+    return req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(url);
+  },
   cancelSku: (pid: string, sid: string) =>
     req<{ ok: boolean }>(`/api/projects/${pid}/skus/${sid}/cancel`, { method: "POST" }),
   deleteSku: (pid: string, sid: string) => req<void>(`/api/projects/${pid}/skus/${sid}`, { method: "DELETE" }),

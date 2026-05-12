@@ -1,4 +1,6 @@
 import uuid
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -37,11 +39,34 @@ def list_scenes(project_id: str, db: Session = Depends(get_session)) -> list[dic
     return [_scene_to_out(s) for s in rows]
 
 
+def _adopt_cover(cover_path: str | None) -> str | None:
+    """如果 payload 带了临时 cover_path（AI 端点生成的预览图），把它搬到 assets/scene_covers/
+    并返回相对 ref_image_path。否则 None。"""
+    if not cover_path:
+        return None
+    import shutil, uuid as _uuid
+    src = Path(cover_path)
+    if not src.exists():
+        return None
+    from img2ec.config import get_settings
+    # backend/assets/scene_covers/ — 用 backend root 推算（main.py 已 mount /static/assets）
+    repo_backend = Path(__file__).resolve().parent.parent.parent
+    dst_dir = repo_backend / "assets" / "scene_covers"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / f"ai-{_uuid.uuid4().hex[:10]}{src.suffix or '.jpg'}"
+    shutil.copy2(src, dst)
+    return f"scene_covers/{dst.name}"
+
+
 @router.post("", response_model=SceneOut, status_code=201)
 def create_scene(project_id: str, payload: SceneCreate, db: Session = Depends(get_session)) -> dict:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
-    sc = Scene(id=str(uuid.uuid4()), project_id=project_id, **payload.model_dump())
+    data = payload.model_dump()
+    cover_path = data.pop("cover_path", None)
+    ref_image_path = _adopt_cover(cover_path)
+    sc = Scene(id=str(uuid.uuid4()), project_id=project_id,
+               ref_image_path=ref_image_path, **data)
     db.add(sc)
     db.commit()
     db.refresh(sc)
@@ -53,7 +78,12 @@ def update_scene(project_id: str, scene_id: str, payload: SceneCreate, db: Sessi
     sc = db.get(Scene, scene_id)
     if sc is None or sc.project_id != project_id:
         raise HTTPException(404, "scene not found")
-    for k, v in payload.model_dump().items():
+    data = payload.model_dump()
+    cover_path = data.pop("cover_path", None)
+    new_ref = _adopt_cover(cover_path)
+    if new_ref:
+        sc.ref_image_path = new_ref
+    for k, v in data.items():
         setattr(sc, k, v)
     db.commit()
     db.refresh(sc)
@@ -90,6 +120,8 @@ def import_default_scenes(project_id: str, db: Session = Depends(get_session)) -
             ip_adapter_weight=seed.ip_adapter_weight,
             base_model=seed.base_model,
             ref_image_path=f"scene_covers/{seed.cover_filename}" if seed.cover_filename else None,
+            festival=seed.festival,
+            created_by="system",
         )
         db.add(sc)
         added.append(sc)

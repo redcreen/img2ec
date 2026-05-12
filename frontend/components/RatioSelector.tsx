@@ -36,6 +36,7 @@ export function RatioSelector({
   initialDimensions,
   sourceImages,
   busy,
+  liveStatus,
   onTrigger,
 }: {
   existingRatios: string[];
@@ -43,6 +44,7 @@ export function RatioSelector({
   initialDimensions: { length_cm: number | null; width_cm: number | null; height_cm: number | null };
   sourceImages: Array<{ id: string; name: string; src_url: string | null }>;
   busy: boolean;
+  liveStatus?: { running: boolean; text: string; tone: "running" | "done" | "failed" | "idle" };
   onTrigger: (args: {
     ratios: string[];
     dimStyles: string[];
@@ -113,19 +115,13 @@ export function RatioSelector({
     if (busy) return "处理中…";
     if (selectedList.length === 0) return "请勾选要生成的规格";
     if (dimError) return "尺寸图需要填长×宽×高";
-    if (willRegen.length > 0 && willCreate.length === 0) return `▶ 重新生成（${willRegen.length} 张，覆盖原图）`;
-    if (willRegen.length > 0) return `▶ 生成 ${willCreate.length} 张 + 重生 ${willRegen.length} 张`;
+    if (willRegen.length > 0 && willCreate.length === 0) return `▶ 再生成 ${willRegen.length} 张新版本（旧版保留）`;
+    if (willRegen.length > 0) return `▶ 生成 ${willCreate.length} 张 + 再生 ${willRegen.length} 张新版本`;
     return `▶ 生成（${willCreate.length} 张）`;
   })();
 
   const onClick = () => {
     if (dimError) return;
-    if (willRegen.length > 0) {
-      const ok = confirm(
-        `要覆盖以下已生成的规格吗？\n${willRegen.map((r) => LABEL[r]).join("、")}\n\n旧图会被新图替换。`
-      );
-      if (!ok) return;
-    }
     onTrigger({
       ratios: selectedRatios,
       dimStyles: selectedDimStyles,
@@ -208,13 +204,28 @@ export function RatioSelector({
         </div>
       )}
 
-      <button
-        disabled={busy || selectedList.length === 0 || dimError}
-        onClick={onClick}
-        className="mt-3 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {buttonLabel}
-      </button>
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <button
+          disabled={selectedList.length === 0 || dimError}
+          onClick={onClick}
+          className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {buttonLabel}
+        </button>
+        {/* liveStatus 已经挪到页面顶部独立横幅；此处仅在 idle/done/failed 时显示简短提示 */}
+        {liveStatus && liveStatus.tone === "done" && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] bg-emerald-500/15 text-emerald-300 border-emerald-600/40">
+            <span className="inline-block w-3 text-center">✓</span>
+            <span>{liveStatus.text}</span>
+          </span>
+        )}
+        {liveStatus && liveStatus.tone === "failed" && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] bg-red-500/15 text-red-300 border-red-600/40">
+            <span className="inline-block w-3 text-center">✗</span>
+            <span>{liveStatus.text}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -259,7 +270,7 @@ function ChipGroup({
         const icon = isExisting && !isSelected
           ? "✓"
           : isExisting && isSelected
-          ? "↻"
+          ? "+"
           : isSelected
           ? "☑"
           : "☐";
@@ -272,7 +283,7 @@ function ChipGroup({
             <span>{icon}</span>
             <span>{LABEL[r]}</span>
             {isExisting && !isSelected && <span className="opacity-60 ml-1">已生成</span>}
-            {isExisting && isSelected && <span className="opacity-80 ml-1">将重生</span>}
+            {isExisting && isSelected && <span className="opacity-80 ml-1">+新版本</span>}
           </label>
         );
       })}

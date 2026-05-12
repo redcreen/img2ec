@@ -19,7 +19,12 @@ class CancelRequested(Exception):
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
-def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> str:
+def process_image_task(
+    self, image_id: str,
+    ratios: list[str] | None = None,
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
+) -> str:
     settings = get_settings()
     db = SessionLocal()
     sku: SKU | None = None
@@ -56,9 +61,19 @@ def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> 
             db.commit()
 
         def on_master_done(key: str, master_path: Path, idx: int, total: int) -> None:
-            """每完成一张 master：① 写入 master_paths（前端轮询能立刻看到缩略图）
-            ② 检查 SKU 是否被 cancel（用户随时可停止）"""
-            img.master_paths = {**(img.master_paths or {}), key: str(master_path)}
+            """每完成一张 master：
+            ① 设为 primary（前端轮询能立刻看到缩略图）
+            ② 把新路径加到 master_history[key] 最前面（保留历史版本）
+            ③ 检查 SKU 是否被 cancel（用户随时可停止）"""
+            mp = dict(img.master_paths or {})
+            mp[key] = str(master_path)
+            img.master_paths = mp
+            hist = {k: list(v) for k, v in (img.master_history or {}).items()}
+            cur_list = hist.get(key, [])
+            # 防御性去重（同路径不应该出现两次，但万一）
+            cur_list = [p for p in cur_list if p != str(master_path)]
+            hist[key] = [str(master_path), *cur_list]
+            img.master_history = hist
             db.commit()
             db.refresh(sku)
             if sku.status == "cancelled":
@@ -78,6 +93,8 @@ def process_image_task(self, image_id: str, ratios: list[str] | None = None) -> 
                 on_progress=update_progress,
                 on_master_done=on_master_done,
                 ratios=ratios,
+                extra_prompt=extra_prompt,
+                extra_weight=extra_weight,
             )
             # 派生：合并新生成的 paths 到已有的（partial generation 累加）
             new_derived = {

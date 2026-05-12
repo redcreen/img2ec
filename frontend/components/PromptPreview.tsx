@@ -14,13 +14,24 @@ const RATIO_LABEL: Record<string, string> = {
   "16x9": "16:9 横版",
 };
 
-export function PromptPreview({ pid, sid, scene }: { pid: string; sid: string; scene?: Scene }) {
+export function PromptPreview({
+  pid, sid, scene,
+  extraPrompt, extraWeight, onExtraPromptChange, onExtraWeightChange,
+}: {
+  pid: string; sid: string; scene?: Scene;
+  extraPrompt: string;
+  extraWeight: number;
+  onExtraPromptChange: (s: string) => void;
+  onExtraWeightChange: (w: number) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [activeRatio, setActiveRatio] = useState<string>("1x1");
   const [coverLightbox, setCoverLightbox] = useState(false);
+  // 重新拉 prompt：让用户调 extra 后立刻能在「完整 prompt」里看到合成结果
+  const swrKey = open ? `prompt-${sid}-${extraWeight}-${extraPrompt}` : null;
   const { data, error } = useSWR(
-    open ? `prompt-${sid}` : null,
-    () => api.previewPrompt(pid, sid)
+    swrKey,
+    () => api.previewPrompt(pid, sid, extraPrompt, extraWeight)
   );
 
   return (
@@ -53,6 +64,48 @@ export function PromptPreview({ pid, sid, scene }: { pid: string; sid: string; s
       {coverLightbox && scene?.cover_url && (
         <Lightbox src={scene.cover_url} alt={scene.name} onClose={() => setCoverLightbox(false)} />
       )}
+
+      {/* 附加提示词（模板 prompt 下方） — 影响这次生成 */}
+      <div className="mb-3 bg-zinc-950 border border-zinc-700 rounded p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] uppercase opacity-50">附加提示词（叠加在模板之上）</div>
+          <div className="text-[10px] opacity-50">不持久化 · 只影响本次生成</div>
+        </div>
+        <textarea
+          value={extraPrompt}
+          onChange={(e) => onExtraPromptChange(e.target.value)}
+          placeholder="例：保留产品 logo 不被遮挡；产品摆放在桌面靠近窗户的位置；偏暖光"
+          rows={2}
+          className="w-full text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 resize-y font-mono"
+        />
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] opacity-60 w-14">权重</span>
+          <input
+            type="range" min={0} max={1} step={0.05}
+            value={extraWeight}
+            onChange={(e) => onExtraWeightChange(parseFloat(e.target.value))}
+            disabled={!extraPrompt.trim()}
+            className="flex-1 accent-blue-500 disabled:opacity-40"
+          />
+          <input
+            type="number" min={0} max={1} step={0.05}
+            value={extraWeight}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              if (!isNaN(v)) onExtraWeightChange(Math.min(1, Math.max(0, v)));
+            }}
+            disabled={!extraPrompt.trim()}
+            className="w-16 text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1 disabled:opacity-40 font-mono text-center"
+          />
+          <span className="text-[10px] opacity-50 w-32">
+            {!extraPrompt.trim() ? "（先填提示词）"
+              : extraWeight < 0.25 ? "轻度参考"
+              : extraWeight < 0.55 ? "适度强调"
+              : extraWeight < 0.85 ? "强烈强调"
+                                   : "硬性约束"}
+          </span>
+        </div>
+      </div>
 
       <button
         onClick={() => setOpen(o => !o)}

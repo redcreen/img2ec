@@ -26,6 +26,9 @@ export default function SkuDetailPage() {
   const [sourceLightbox, setSourceLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
+  const [extraPrompt, setExtraPrompt] = useState("");
+  const [extraWeight, setExtraWeight] = useState(0.5);
+  const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // 当 sku 加载后，默认激活第一个变体
@@ -46,7 +49,8 @@ export default function SkuDetailPage() {
     dimImageIndices: number[];
     dims: { length: number | null; width: number | null; height: number | null };
   }) => {
-    if (!activeVariant) return;
+    if (!activeVariant || submitting) return;
+    setSubmitting(true);
     try {
       const needSave = args.dimStyles.length > 0 && (
         args.dims.length !== sku.length_cm ||
@@ -60,15 +64,22 @@ export default function SkuDetailPage() {
           height_cm: args.dims.height,
         });
       }
+      const extra = extraPrompt.trim()
+        ? { prompt: extraPrompt.trim(), weight: extraWeight }
+        : undefined;
       if (args.ratios.length > 0) {
-        await api.processSku(pid, sid, args.ratios, activeVariant.id);
+        await api.processSku(pid, sid, args.ratios, activeVariant.id, extra);
       }
       if (args.dimStyles.length > 0) {
         await api.regenerateDimension(pid, sid, args.dimStyles, activeVariant.id, args.dimImageIndices);
       }
-      mutate();
+      // 立刻刷一次，让 SWR 看到 status=running / dim=generating
+      await mutate();
+      // 给后端 ~3 秒兜底盲窗（mutate 已刷新，正常 isBusy 已 true，此处用 setTimeout 兜底防极端情况）
+      setTimeout(() => setSubmitting(false), 3000);
     } catch (e: any) {
       alert("提交失败：" + e.message);
+      setSubmitting(false);
     }
   };
 
@@ -109,7 +120,7 @@ export default function SkuDetailPage() {
   };
 
   const STAGE_LABEL: Record<string, string> = {
-    pending: "排队中", cutting: "抠图中", generating: "Codex 生图中", composing: "派生平台尺寸",
+    ready: "待处理", pending: "排队中", cutting: "抠图中", generating: "Codex 生图中", composing: "派生平台尺寸",
     done: "图像完成", failed: "失败",
   };
 
@@ -123,8 +134,48 @@ export default function SkuDetailPage() {
 
   const existingRatios = Object.keys(variantImages[0]?.master_urls || {});
 
+  // 给 RatioSelector 用的 live 状态徽章
+  const dimStates: Record<string, { status: string }> = activeVariant?.dimension_states ?? {};
+  const anyImgRunning = variantImages.some(i => ["pending", "cutting", "generating", "composing"].includes(i.status));
+  const anyImgFailed = variantImages.some(i => i.status === "failed");
+  // 后端用 "generating" 表示 dim 在跑（不是 "running"）
+  const anyDimRunning = Object.values(dimStates).some(s => s.status === "generating");
+  const dimRunningKeys = Object.entries(dimStates)
+    .filter(([, s]) => s.status === "generating")
+    .map(([k]) => k);
+  const anyDimError = Object.values(dimStates).some(s => s.status === "error");
+  const isBusy = submitting || sku.status === "running" || anyImgRunning || anyDimRunning;
+  const liveStatus: { running: boolean; text: string; tone: "running" | "done" | "failed" | "idle" } =
+    submitting && !anyImgRunning && !anyDimRunning
+      ? { running: true, tone: "running", text: "已提交 · 等待 worker…" }
+      : isBusy
+      ? {
+          running: true,
+          tone: "running",
+          text: anyImgRunning && currentImg
+            ? `生成中 · 原图 ${currentImgIdx + 1}/${totalImages} · ${STAGE_LABEL[currentImg.status] || currentImg.status} ${currentImg.progress || 0}%`
+            : anyDimRunning ? `尺寸图生成中 · ${dimRunningKeys.join(", ")}`
+            : "处理中…",
+        }
+      : anyImgFailed || anyDimError
+      ? { running: false, tone: "failed", text: anyDimError ? "尺寸图生成失败 — 可点击重生" : "上次有失败 — 可点击重生" }
+      : allImagesDone
+      ? { running: false, tone: "done", text: `已完成（${totalImages} 张原图）` }
+      : { running: false, tone: "idle", text: "" };
+
   return (
     <div className="space-y-3">
+      {/* 顶部 sticky 状态横幅：生成中独立展示，不挡按钮 */}
+      {liveStatus.tone === "running" && (
+        <div className="sticky top-0 z-30 -mx-3 px-4 py-2 bg-amber-900/85 backdrop-blur border-y border-amber-600/60 flex items-center gap-2 text-xs">
+          <svg className="animate-spin h-3.5 w-3.5 text-amber-300" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+            <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" />
+          </svg>
+          <span className="text-amber-100 font-semibold">{liveStatus.text}</span>
+          <span className="text-amber-200/70 text-[10px]">· 可继续点 ▶ 生成添加新任务（已在跑的图会跳过）</span>
+        </div>
+      )}
       {/* Top header */}
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
         <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -242,7 +293,13 @@ export default function SkuDetailPage() {
 
             {/* 2. 模板 + Prompt */}
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
-              <PromptPreview pid={pid} sid={sid} scene={scene} />
+              <PromptPreview
+                pid={pid} sid={sid} scene={scene}
+                extraPrompt={extraPrompt}
+                extraWeight={extraWeight}
+                onExtraPromptChange={setExtraPrompt}
+                onExtraWeightChange={setExtraWeight}
+              />
             </div>
 
             {/* 3. 生成规格（比例图 + 特写图 + 尺寸图） */}
@@ -268,7 +325,8 @@ export default function SkuDetailPage() {
                     name: img.name,
                     src_url: img.src_url,
                   }))}
-                  busy={false}
+                  busy={submitting}
+                  liveStatus={liveStatus}
                   onTrigger={onTriggerGen}
                 />
               </div>

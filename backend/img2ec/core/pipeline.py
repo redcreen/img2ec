@@ -31,6 +31,8 @@ def process_one_image(
     on_progress: ProgressCb | None = None,
     on_master_done: MasterDoneCb | None = None,
     ratios: "list[str] | None" = None,
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
 ) -> dict[str, list[Path]]:
     """跑完返回派生输出 {platform: [paths]} 字典。"""
     cb: ProgressCb = on_progress or (lambda _s, _p: None)
@@ -39,10 +41,9 @@ def process_one_image(
     cb("generating", 0)
     master_out = master_dir(sku_dir)
 
-    def _on_master_done(key: str, idx: int, total: int) -> None:
+    def _on_master_done(key: str, master_path: Path, idx: int, total: int) -> None:
         cb("generating", int(idx * 100 / total))
         if on_master_done is not None:
-            master_path = master_out / f"{image_stem}-{key}.jpg"
             on_master_done(key, master_path, idx, total)
 
     master_paths = generate_all_masters(
@@ -57,6 +58,8 @@ def process_one_image(
         image_stem=image_stem,
         on_master_done=_on_master_done,
         ratios=ratios,
+        extra_prompt=extra_prompt,
+        extra_weight=extra_weight,
     )
 
     # Pillow 派生 15 个平台尺寸（裁剪/缩放）

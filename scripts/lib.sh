@@ -18,6 +18,8 @@ case "${ENV_NAME:-}" in
     DB_FILE="$HOME/img2ec/img2ec.db"
     RELOAD_FLAG=""
     SESSION="img2ec-prod"
+    REDIS_DB=0       # Redis 逻辑库 0 给 prod
+    CELERY_QUEUE="prod"
     ;;
   dev)
     BACKEND_PORT=9001
@@ -26,10 +28,13 @@ case "${ENV_NAME:-}" in
     DB_FILE="$HOME/img2ec-dev/img2ec.db"
     RELOAD_FLAG="--reload"
     SESSION="img2ec-dev"
+    REDIS_DB=1       # Redis 逻辑库 1 给 dev（broker/state 隔离）
+    CELERY_QUEUE="dev"
     ;;
   *)
     echo "ENV_NAME 必须是 prod 或 dev" >&2; exit 2 ;;
 esac
+REDIS_URL="redis://localhost:6379/$REDIS_DB"
 
 mkdir -p "$DATA_ROOT" "$(dirname "$DB_FILE")"
 

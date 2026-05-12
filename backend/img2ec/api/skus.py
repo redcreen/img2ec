@@ -55,7 +55,7 @@ def _dimension_image_path_for_variant(variant, style: str = "white", image_idx: 
     return vdir / "outputs" / "dimension" / f"{image_stem}-dimension-{style}.jpg"
 
 
-# 尺寸图后台生成状态：{variant_id: {"<style>_img<idx>": {status, err}}}
+# 尺寸图状态已迁到 Redis（infra.state_store）；这里只是为兼容 import 名而保留空 dict
 _DIM_STATE: dict[str, dict[str, dict]] = {}
 
 
@@ -74,12 +74,22 @@ def _enrich_variant(variant) -> dict:
         img["master_urls"] = {
             k: _path_to_url(v) for k, v in (img.get("master_paths") or {}).items()
         }
+        # 历史版本：dict[ratio, list[{path, url}]]，新→旧，list[0] = primary
+        hist_raw = img.get("master_history") or {}
+        # 兜底：history 为空但 master_paths 有 → 自动用 primary 作单元素历史
+        if not hist_raw and (img.get("master_paths") or {}):
+            hist_raw = {k: [v] for k, v in (img["master_paths"] or {}).items() if v}
+        img["master_history_urls"] = {
+            k: [{"path": p, "url": _path_to_url(p) or ""} for p in (paths_list or [])]
+            for k, paths_list in hist_raw.items()
+        }
         img["derived_urls"] = {
             k: _path_to_url(v) for k, v in (img.get("derived_paths") or {}).items()
         }
-    # 尺寸图：扫所有 (style, image_idx) 组合
+    # 尺寸图：扫所有 (style, image_idx) 组合；状态从 Redis 跨进程读
+    from img2ec.infra import state_store
     dim_urls: dict[str, str] = {}
-    state = _DIM_STATE.get(variant.id, {})
+    state = state_store.dim_get_all(variant.id)
     dim_states: dict[str, dict] = {}
     for style in DIMENSION_STYLES:
         for idx in range(len(variant.images)):
@@ -147,7 +157,18 @@ def create_sku(project_id: str, payload: SKUCreate, db: Session = Depends(get_se
     proj = db.get(Project, project_id)
     if proj is None:
         raise HTTPException(404, "project not found")
-    sku = SKU(id=str(uuid.uuid4()), project_id=project_id, name=payload.name,
+    # 同项目内 SKU 名称唯一（避免共享磁盘目录导致资产串）
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "SKU 名称不能为空")
+    existing = db.query(SKU).filter_by(project_id=project_id, name=name).first()
+    if existing:
+        raise HTTPException(
+            409,
+            f"项目内已存在同名 SKU「{name}」(id={existing.id[:8]}…)。"
+            f"请换个名字，或先删除老的。同名会共享磁盘目录导致老资产污染新 SKU。",
+        )
+    sku = SKU(id=str(uuid.uuid4()), project_id=project_id, name=name,
               scene_id=payload.scene_id, status=SKUStatus.DRAFT.value)
     db.add(sku)
     # 自动建默认变体；多色场景 Phase 4 加变体 CRUD
@@ -176,8 +197,22 @@ def delete_sku(project_id: str, sku_id: str, db: Session = Depends(get_session))
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
+    # 删 DB 前先记下磁盘路径，删 DB 后清盘上文件（避免同名 SKU 复活时捡到孤儿资产）
+    proj = sku.project
+    sku_path = None
+    if proj is not None:
+        try:
+            sku_path = sku_dir(Path(proj.root_path).parent, proj.name, sku.name)
+        except Exception:
+            sku_path = None
     db.delete(sku)
     db.commit()
+    if sku_path and sku_path.exists():
+        import shutil
+        try:
+            shutil.rmtree(sku_path)
+        except OSError:
+            pass  # 文件没了不是错
 
 
 @router.post("/{sku_id}/images", response_model=SKUOut, status_code=201)
@@ -210,7 +245,7 @@ def upload_image(
 
     img = SourceImage(
         id=str(uuid.uuid4()), variant_id=variant.id, name=file.filename, src_path=str(dst),
-        status=ImageStatus.PENDING.value,
+        status=ImageStatus.READY.value,
     )
     db.add(img)
     if sku.status == SKUStatus.DRAFT.value:
@@ -237,8 +272,14 @@ ORDERED_RATIOS = ["1x1", "long", "3x4", "9x16", "16x9", "front", "side", "detail
 
 
 @router.get("/{sku_id}/preview-prompt")
-def preview_prompt(project_id: str, sku_id: str, db: Session = Depends(get_session)) -> dict:
-    """返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。"""
+def preview_prompt(
+    project_id: str, sku_id: str,
+    extra_prompt: str = "",
+    extra_weight: float = 0.0,
+    db: Session = Depends(get_session),
+) -> dict:
+    """返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。
+    若提供 extra_prompt + extra_weight，附加到结果里以便所见即所得。"""
     from img2ec.infra.codex_image import build_master_prompt
     from img2ec.models import Scene
 
@@ -254,7 +295,10 @@ def preview_prompt(project_id: str, sku_id: str, db: Session = Depends(get_sessi
         "scene_prompt": scene.prompt,
         "negative_prompt": scene.negative_prompt,
         "per_ratio": {
-            r: build_master_prompt(scene_prompt=scene.prompt, ratio_key=r)
+            r: build_master_prompt(
+                scene_prompt=scene.prompt, ratio_key=r,
+                extra_prompt=extra_prompt, extra_weight=extra_weight,
+            )
             for r in ORDERED_RATIOS
         },
     }
@@ -262,6 +306,8 @@ def preview_prompt(project_id: str, sku_id: str, db: Session = Depends(get_sessi
 
 class ProcessRequest(BaseModel):
     ratios: list[str] | None = None  # None=全部 5 个；指定 ⊂ {"1x1","long","3x4","9x16","16x9"}
+    extra_prompt: str = ""
+    extra_weight: float = 0.0
 
 
 @router.post("/{sku_id}/process", status_code=202)
@@ -283,6 +329,8 @@ def process_sku(
         raise HTTPException(400, "no scene assigned")
 
     ratios = payload.ratios if payload else None
+    extra_prompt = (payload.extra_prompt if payload else "") or ""
+    extra_weight = float(payload.extra_weight if payload else 0.0)
     if ratios is not None:
         if not ratios:
             raise HTTPException(400, "ratios cannot be empty list (omit field for all 8)")
@@ -303,31 +351,29 @@ def process_sku(
     if not any(v.images for v in target_variants):
         raise HTTPException(400, "no source images on SKU")
 
+    # 跳过正在跑的 image，允许背景任务持续累加（用户可继续点 ▶）
+    IN_FLIGHT = {
+        ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
+        ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value,
+    }
     sku.status = SKUStatus.RUNNING.value
     image_ids: list[str] = []
+    skipped_ids: list[str] = []
     for v in target_variants:
         for img in v.images:
+            if img.status in IN_FLIGHT:
+                skipped_ids.append(img.id)
+                continue
             img.status = ImageStatus.PENDING.value
             img.err_msg = None
             image_ids.append(img.id)
     db.commit()
 
-    import threading
     from img2ec.tasks.pipeline_tasks import process_image_task
+    for iid in image_ids:
+        process_image_task.delay(iid, wanted, extra_prompt, extra_weight)
 
-    eager = get_settings().celery_eager
-    if eager:
-        for iid in image_ids:
-            threading.Thread(
-                target=process_image_task.delay,
-                args=(iid, wanted),
-                daemon=True,
-            ).start()
-    else:
-        for iid in image_ids:
-            process_image_task.delay(iid, wanted)
-
-    return {"queued": len(image_ids), "ratios": wanted}
+    return {"queued": len(image_ids), "skipped_in_flight": len(skipped_ids), "ratios": wanted}
 
 
 @router.post("/{sku_id}/cancel", status_code=200)
@@ -341,6 +387,60 @@ def cancel_sku(project_id: str, sku_id: str, db: Session = Depends(get_session))
     sku.status = "cancelled"
     db.commit()
     return {"ok": True}
+
+
+class DeleteMasterVersionRequest(BaseModel):
+    image_id: str
+    ratio: str
+    path: str  # 绝对路径（前端从 master_history_urls 取的 path 字段回传）
+
+
+@router.post("/{sku_id}/master-versions/delete", status_code=200)
+def delete_master_version(
+    project_id: str, sku_id: str,
+    payload: DeleteMasterVersionRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """删除某张 master 图的一个版本。如删的是 primary，下一个版本自动升 primary。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+
+    from img2ec.models import SourceImage
+    img = db.get(SourceImage, payload.image_id)
+    if img is None:
+        raise HTTPException(404, "image not found")
+
+    hist = {k: list(v) for k, v in (img.master_history or {}).items()}
+    # 兜底：旧数据没 history 但 master_paths 里有
+    mp = dict(img.master_paths or {})
+    if payload.ratio not in hist and payload.ratio in mp:
+        hist[payload.ratio] = [mp[payload.ratio]]
+
+    versions = hist.get(payload.ratio, [])
+    if payload.path not in versions:
+        raise HTTPException(404, "version not found for this ratio")
+
+    versions = [p for p in versions if p != payload.path]
+    # 物理文件
+    try:
+        Path(payload.path).unlink()
+    except FileNotFoundError:
+        pass
+
+    if versions:
+        hist[payload.ratio] = versions
+        mp[payload.ratio] = versions[0]  # primary = newest 余下
+    else:
+        hist.pop(payload.ratio, None)
+        mp.pop(payload.ratio, None)
+        # 派生图按 ratio 找不到 primary 后无法更新，留旧的（用户可重生）
+
+    img.master_history = hist
+    img.master_paths = mp
+    db.commit()
+    db.refresh(sku)
+    return _enrich(sku)
 
 
 class ApplyDimensionRequest(BaseModel):
@@ -568,6 +668,45 @@ def update_dimensions(
     return _enrich(sku)
 
 
+class DimensionDeleteRequest(BaseModel):
+    variant_id: str
+    style: str  # white | template
+    image_idx: int
+
+
+@router.post("/{sku_id}/dimension/delete", status_code=200)
+def delete_dimension_image(
+    project_id: str, sku_id: str,
+    payload: DimensionDeleteRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """删除某张尺寸图（单张 = style × image_idx）。物理文件 + 状态都清。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    variant = next((v for v in sku.variants if v.id == payload.variant_id), None)
+    if variant is None:
+        raise HTTPException(404, "variant not found")
+    if payload.style not in DIMENSION_STYLES:
+        raise HTTPException(400, f"invalid style {payload.style}")
+    if payload.image_idx < 0 or payload.image_idx >= len(variant.images):
+        raise HTTPException(400, "image_idx out of range")
+
+    p = _dimension_image_path_for_variant(variant, payload.style, payload.image_idx)
+    if p is not None and p.exists():
+        try:
+            p.unlink()
+        except OSError as e:
+            raise HTTPException(500, f"failed to delete file: {e}")
+
+    # 清状态
+    from img2ec.infra import state_store
+    state_store.dim_clear(variant.id, f"{payload.style}_img{payload.image_idx}")
+
+    db.refresh(sku)
+    return _enrich(sku)
+
+
 class DimensionRegenerateRequest(BaseModel):
     styles: list[str] = ["white"]  # subset of {"white","template"}
     image_indices: list[int] | None = None  # 哪些原图（按 variant.images 索引）；None=只用第 0 张
@@ -611,56 +750,19 @@ def regenerate_dimension_diagram(
     if "template" in requested and (scene is None or not scene.prompt):
         raise HTTPException(400, "template style requires SKU to have a scene template assigned")
 
-    # (style, idx) 组合
+    # (style, idx) 组合 — 状态通过 Redis 跨进程共享
+    from img2ec.infra import state_store
     combos = [(s, i) for s in requested for i in indices]
-    state = _DIM_STATE.setdefault(variant.id, {})
-    busy_combos = [f"{s}_img{i}" for s, i in combos if state.get(f"{s}_img{i}", {}).get("status") == "generating"]
+    existing = state_store.dim_get_all(variant.id)
+    busy_combos = [f"{s}_img{i}" for s, i in combos if existing.get(f"{s}_img{i}", {}).get("status") == "generating"]
     if busy_combos:
         raise HTTPException(409, f"already generating: {busy_combos}")
 
+    # 标记 generating + 立即派工到 celery worker
+    from img2ec.tasks.dim_tasks import regenerate_dimension_task
     for s, i in combos:
-        state[f"{s}_img{i}"] = {"status": "generating", "err": None}
-
-    sku_dims = (sku.length_cm, sku.width_cm, sku.height_cm)
-    scene_prompt = scene.prompt if scene else None
-    # 抓出每个 combo 的 src_path 和 out_path
-    combo_specs: list[tuple[str, int, Path, Path]] = []
-    for s, i in combos:
-        src_path = Path(variant.images[i].src_path)
-        if not src_path.exists():
-            raise HTTPException(400, f"source image missing: {src_path}")
-        out_path = _dimension_image_path_for_variant(variant, s, i)
-        if out_path is None:
-            raise HTTPException(500, f"cannot compute output path for {s}_img{i}")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        combo_specs.append((s, i, src_path, out_path))
-
-    vid = variant.id
-
-    def _make_worker(style: str, idx: int, src_p: Path, out_p: Path):
-        key = f"{style}_img{idx}"
-        def _w() -> None:
-            from img2ec.infra.codex_image import CodexImageError, generate_size_diagram
-            try:
-                generate_size_diagram(
-                    source_image=src_p,
-                    length_cm=sku_dims[0],
-                    width_cm=sku_dims[1],
-                    height_cm=sku_dims[2],
-                    output_path=out_p,
-                    style=style,
-                    scene_prompt=scene_prompt,
-                )
-                _DIM_STATE[vid][key] = {"status": "idle", "err": None}
-            except CodexImageError as e:
-                _DIM_STATE[vid][key] = {"status": "error", "err": f"Codex error: {e}"}
-            except Exception as e:
-                _DIM_STATE[vid][key] = {"status": "error", "err": f"{type(e).__name__}: {e}"}
-        return _w
-
-    import threading
-    for s, i, src_p, out_p in combo_specs:
-        threading.Thread(target=_make_worker(s, i, src_p, out_p), daemon=True).start()
+        state_store.dim_set(variant.id, f"{s}_img{i}", "generating")
+        regenerate_dimension_task.delay(sku.id, variant.id, s, i)
 
     db.refresh(sku)
     return _enrich(sku)

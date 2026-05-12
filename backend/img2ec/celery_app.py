@@ -8,7 +8,11 @@ celery_app = Celery(
     "img2ec",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["img2ec.tasks.pipeline_tasks"],
+    include=[
+        "img2ec.tasks.pipeline_tasks",
+        "img2ec.tasks.dim_tasks",
+        "img2ec.tasks.scene_tasks",
+    ],
 )
 
 celery_app.conf.task_acks_late = True

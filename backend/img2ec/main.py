@@ -17,9 +17,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from img2ec.api import projects, scenes, skus, outputs, fs, copy, variants
+    from img2ec.api import projects, scenes, skus, outputs, fs, copy, variants, ai_scenes
     app.include_router(projects.router)
     app.include_router(scenes.router)
+    app.include_router(ai_scenes.router)
     app.include_router(skus.router)
     app.include_router(variants.router)
     app.include_router(outputs.router)
@@ -41,6 +42,12 @@ def create_app() -> FastAPI:
     assets_dir = Path(__file__).parent.parent / "assets"
     if assets_dir.exists():
         app.mount("/static/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    # AI 生成模板的临时预览图（uuid 命名，未持久化）
+    import tempfile
+    ai_preview_dir = Path(tempfile.gettempdir()) / "img2ec-ai-previews"
+    ai_preview_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/ai-previews", StaticFiles(directory=str(ai_preview_dir)), name="ai_previews")
 
     return app
 
