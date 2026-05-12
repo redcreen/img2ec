@@ -354,31 +354,28 @@ def process_sku(
     if not any(v.images for v in target_variants):
         raise HTTPException(400, "no source images on SKU")
 
-    # 跳过正在跑的 image，允许背景任务持续累加（用户可继续点 ▶）
+    # 全部入队：worker pool 按 concurrency 调度，无需"跳过 in-flight"
     IN_FLIGHT = {
         ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
         ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value,
     }
     sku.status = SKUStatus.RUNNING.value
     image_ids: list[str] = []
-    skipped_ids: list[str] = []
     for v in target_variants:
         for img in v.images:
-            if img.status in IN_FLIGHT:
-                skipped_ids.append(img.id)
-                continue
-            img.status = ImageStatus.PENDING.value
-            img.err_msg = None
+            if img.status not in IN_FLIGHT:
+                img.status = ImageStatus.PENDING.value
+                img.err_msg = None
             image_ids.append(img.id)
     db.commit()
 
     from img2ec.infra import state_store
     from img2ec.tasks.pipeline_tasks import process_image_task
     for iid in image_ids:
-        state_store.pending_ratios_set(iid, wanted)
+        state_store.pending_ratios_add(iid, wanted)
         process_image_task.delay(iid, wanted, extra_prompt, extra_weight)
 
-    return {"queued": len(image_ids), "skipped_in_flight": len(skipped_ids), "ratios": wanted}
+    return {"queued": len(image_ids), "ratios": wanted}
 
 
 @router.post("/{sku_id}/cancel", status_code=200)
@@ -702,25 +699,25 @@ def regenerate_single_image(
     if invalid:
         raise HTTPException(400, f"invalid ratios: {sorted(invalid)}")
 
+    # 不再 skip in-flight：直接 enqueue。Celery worker pool 自动调度（concurrency 个并发）。
+    # 状态：如果当前已经在跑就不动 status；否则置为 pending（让 UI 显示排队）
     IN_FLIGHT = {ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
                  ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value}
-    if img.status in IN_FLIGHT:
-        return {"queued": 0, "skipped_in_flight": 1, "image_id": image_id}
-
-    img.status = ImageStatus.PENDING.value
-    img.err_msg = None
+    if img.status not in IN_FLIGHT:
+        img.status = ImageStatus.PENDING.value
+        img.err_msg = None
     sku.status = SKUStatus.RUNNING.value
     db.commit()
 
-    # Redis 标记本次入队的具体 ratio — 让前端只对这几格显示"生成中"
+    # Redis 增量记录本次新入队的 ratio（让前端 only-this-cell-pending 仍然准确）
     from img2ec.infra import state_store
-    state_store.pending_ratios_set(image_id, sorted(ratios))
+    state_store.pending_ratios_add(image_id, sorted(ratios))
 
     from img2ec.tasks.pipeline_tasks import process_image_task
     extra_prompt = (payload.extra_prompt if payload else "") or ""
     extra_weight = float(payload.extra_weight if payload else 0.0)
     process_image_task.delay(image_id, sorted(ratios), extra_prompt, extra_weight)
-    return {"queued": 1, "skipped_in_flight": 0, "image_id": image_id, "ratios": sorted(ratios)}
+    return {"queued": 1, "image_id": image_id, "ratios": sorted(ratios)}
 
 
 @router.post("/{sku_id}/images/{image_id}/delete-all-masters", response_model=SKUOut)

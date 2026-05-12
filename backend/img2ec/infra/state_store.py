@@ -69,6 +69,17 @@ def pending_ratios_set(image_id: str, ratios: list[str]) -> None:
     pipe.execute()
 
 
+def pending_ratios_add(image_id: str, ratios: list[str]) -> None:
+    """增量添加：把新 ratio 加到原有 set 里（已有的图也能继续 enqueue）。"""
+    if not ratios:
+        return
+    key = f"{_PENDING_RATIOS_PREFIX}{image_id}"
+    pipe = _r().pipeline()
+    pipe.sadd(key, *ratios)
+    pipe.expire(key, _PENDING_RATIOS_TTL)
+    pipe.execute()
+
+
 def pending_ratios_remove(image_id: str, ratio: str) -> None:
     _r().srem(f"{_PENDING_RATIOS_PREFIX}{image_id}", ratio)
 

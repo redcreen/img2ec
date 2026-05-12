@@ -145,25 +145,22 @@ export function MasterGallery({
   };
   const onRegenImage = async (img: SourceImage) => {
     if (tabBusy) return;
-    // 优先重生已有；空（被全部删除了）→ 默认 5 主比例（不含特写图）
     const existing = Object.keys(img.master_urls || {});
     const ratios = existing.length > 0 ? existing : ["1x1", "long", "3x4", "9x16", "16x9"];
     setTabBusy(true);
     try {
-      const r = await api.regenerateImage(pid, sid, img.id, { ratios });
-      if (r.skipped_in_flight) alert("该图正在生成中，请等当前批跑完再点");
+      await api.regenerateImage(pid, sid, img.id, { ratios });
       onChanged();
     } catch (e: any) { alert("提交失败：" + e.message); }
     finally { setTabBusy(false); }
   };
 
-  // 单格重生：点空槽位的 ▶ 按钮
+  // 单格重生：纯入队，不再检查 in-flight；后端通过 celery 队列调度
   const onRegenSingle = async (img: SourceImage, ratio: string) => {
     if (tabBusy) return;
     setTabBusy(true);
     try {
-      const r = await api.regenerateImage(pid, sid, img.id, { ratios: [ratio] });
-      if (r.skipped_in_flight) alert("该图正在生成中，请等当前批跑完再点");
+      await api.regenerateImage(pid, sid, img.id, { ratios: [ratio] });
       onChanged();
     } catch (e: any) { alert("提交失败：" + e.message); }
     finally { setTabBusy(false); }
