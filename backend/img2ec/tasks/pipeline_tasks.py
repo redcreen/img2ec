@@ -64,17 +64,19 @@ def process_image_task(
             """每完成一张 master：
             ① 设为 primary（前端轮询能立刻看到缩略图）
             ② 把新路径加到 master_history[key] 最前面（保留历史版本）
-            ③ 检查 SKU 是否被 cancel（用户随时可停止）"""
+            ③ 从 Redis pending_ratios 中移除该 ratio（前端只让排队中的格子显示"生成中"）
+            ④ 检查 SKU 是否被 cancel（用户随时可停止）"""
             mp = dict(img.master_paths or {})
             mp[key] = str(master_path)
             img.master_paths = mp
             hist = {k: list(v) for k, v in (img.master_history or {}).items()}
             cur_list = hist.get(key, [])
-            # 防御性去重（同路径不应该出现两次，但万一）
             cur_list = [p for p in cur_list if p != str(master_path)]
             hist[key] = [str(master_path), *cur_list]
             img.master_history = hist
             db.commit()
+            from img2ec.infra import state_store as _ss
+            _ss.pending_ratios_remove(image_id, key)
             db.refresh(sku)
             if sku.status == "cancelled":
                 raise CancelRequested(f"cancel detected after master {idx}/{total}")
@@ -107,20 +109,28 @@ def process_image_task(
             img.status = ImageStatus.DONE.value
             img.progress = 100
             db.commit()
+            from img2ec.infra import state_store as _ss
+            _ss.pending_ratios_clear(image_id)
         except CancelRequested:
             img.status = ImageStatus.FAILED.value
             img.err_msg = "cancelled by user"
             db.commit()
+            from img2ec.infra import state_store as _ss
+            _ss.pending_ratios_clear(image_id)
             return "cancelled"
         except ComfyError as e:
             img.status = ImageStatus.FAILED.value
             img.err_msg = str(e)
             db.commit()
+            from img2ec.infra import state_store as _ss
+            _ss.pending_ratios_clear(image_id)
             return "failed_comfy"
         except Exception as e:
             img.status = ImageStatus.FAILED.value
             img.err_msg = f"{type(e).__name__}: {e}"
             db.commit()
+            from img2ec.infra import state_store as _ss
+            _ss.pending_ratios_clear(image_id)
             return "failed"
         finally:
             client.close()

@@ -23,6 +23,8 @@ def _r() -> redis.Redis:
 
 _DIM_PREFIX = "img2ec:dim:"
 _DIM_TTL = 3600  # 1 小时清
+_PENDING_RATIOS_PREFIX = "img2ec:pending_ratios:"  # 每张原图当前在排/在跑的 ratio set
+_PENDING_RATIOS_TTL = 3600
 
 
 def dim_set(variant_id: str, key: str, status: str, err: str | None = None) -> None:
@@ -52,3 +54,28 @@ def dim_get_all(variant_id: str) -> dict[str, dict]:
 
 def dim_clear(variant_id: str, key: str) -> None:
     _r().delete(f"{_DIM_PREFIX}{variant_id}:{key}")
+
+
+# === per-image 排队中的 ratio 集合 ===
+
+def pending_ratios_set(image_id: str, ratios: list[str]) -> None:
+    """覆盖式设置：该原图当前在排/在跑的 ratio 列表。"""
+    key = f"{_PENDING_RATIOS_PREFIX}{image_id}"
+    pipe = _r().pipeline()
+    pipe.delete(key)
+    if ratios:
+        pipe.sadd(key, *ratios)
+        pipe.expire(key, _PENDING_RATIOS_TTL)
+    pipe.execute()
+
+
+def pending_ratios_remove(image_id: str, ratio: str) -> None:
+    _r().srem(f"{_PENDING_RATIOS_PREFIX}{image_id}", ratio)
+
+
+def pending_ratios_get(image_id: str) -> set[str]:
+    return _r().smembers(f"{_PENDING_RATIOS_PREFIX}{image_id}") or set()
+
+
+def pending_ratios_clear(image_id: str) -> None:
+    _r().delete(f"{_PENDING_RATIOS_PREFIX}{image_id}")

@@ -86,8 +86,11 @@ def _enrich_variant(variant) -> dict:
         img["derived_urls"] = {
             k: _path_to_url(v) for k, v in (img.get("derived_paths") or {}).items()
         }
-    # 尺寸图：扫所有 (style, image_idx) 组合；状态从 Redis 跨进程读
+    # 注入每张原图的"排队中的 ratio 集合"（让前端只对这几格显示生成中）
     from img2ec.infra import state_store
+    for img in out["images"]:
+        img["pending_ratios"] = sorted(state_store.pending_ratios_get(img["id"]))
+    # 尺寸图：扫所有 (style, image_idx) 组合；状态从 Redis 跨进程读
     dim_urls: dict[str, str] = {}
     state = state_store.dim_get_all(variant.id)
     dim_states: dict[str, dict] = {}
@@ -369,8 +372,10 @@ def process_sku(
             image_ids.append(img.id)
     db.commit()
 
+    from img2ec.infra import state_store
     from img2ec.tasks.pipeline_tasks import process_image_task
     for iid in image_ids:
+        state_store.pending_ratios_set(iid, wanted)
         process_image_task.delay(iid, wanted, extra_prompt, extra_weight)
 
     return {"queued": len(image_ids), "skipped_in_flight": len(skipped_ids), "ratios": wanted}
@@ -706,6 +711,10 @@ def regenerate_single_image(
     img.err_msg = None
     sku.status = SKUStatus.RUNNING.value
     db.commit()
+
+    # Redis 标记本次入队的具体 ratio — 让前端只对这几格显示"生成中"
+    from img2ec.infra import state_store
+    state_store.pending_ratios_set(image_id, sorted(ratios))
 
     from img2ec.tasks.pipeline_tasks import process_image_task
     extra_prompt = (payload.extra_prompt if payload else "") or ""

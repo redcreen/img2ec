@@ -238,12 +238,13 @@ export function MasterGallery({
     onDeleteVersion?: (path: string) => void,
     imgStatus?: string,
     onRegenEmpty?: () => void,
+    isPending?: boolean,
   ) => ({
     imageKey: k, url, label, sub, accent,
     cur, isThumb: thumbKeys.includes(k), thumbBusy,
     onToggleThumb: () => toggleThumb(k),
     onZoom: (u: string, alt: string) => setLightbox({ src: u, alt }),
-    versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty,
+    versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty, isPending,
   });
 
   return (
@@ -338,13 +339,14 @@ export function MasterGallery({
             <div className="grid grid-cols-5 gap-1.5 mb-3">
               {RATIO_KEYS.map((r) => {
                 const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                const pending = (img.pending_ratios || []).includes(r);
                 return (
                   <CurationCell
                     key={r}
                     {...cellProps(
                       `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
                       false, versions, (p) => deleteVersion(img.id, r, p), img.status,
-                      () => onRegenSingle(img, r),
+                      () => onRegenSingle(img, r), pending,
                     )}
                   />
                 );
@@ -356,13 +358,14 @@ export function MasterGallery({
                 <div className="grid grid-cols-5 gap-1.5">
                   {CLOSEUP_KEYS.filter((k) => img.master_urls?.[k]).map((r) => {
                     const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                    const pending = (img.pending_ratios || []).includes(r);
                     return (
                       <CurationCell
                         key={r}
                         {...cellProps(
                           `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
                           false, versions, (p) => deleteVersion(img.id, r, p), img.status,
-                          () => onRegenSingle(img, r),
+                          () => onRegenSingle(img, r), pending,
                         )}
                       />
                     );
@@ -472,7 +475,7 @@ export function MasterGallery({
 function CurationCell({
   imageKey, url, label, sub, accent,
   cur, isThumb, thumbBusy, onToggleThumb, onZoom,
-  versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty,
+  versions, onDeleteVersion, deletingPath, imgStatus, onRegenEmpty, isPending,
 }: {
   imageKey: ImageKey;
   url?: string;
@@ -489,13 +492,15 @@ function CurationCell({
   deletingPath?: string | null;
   imgStatus?: string;
   onRegenEmpty?: () => void;
+  isPending?: boolean;
 }) {
   const inMain = cur.isInMain(imageKey);
   const inDetail = cur.isInDetail(imageKey);
   // primary (versions[0]) 和 url 一致时用 url；versions 缺失则纯老逻辑
   const versionList = versions && versions.length > 0 ? versions : (url ? [{ path: "", url }] : []);
   const primaryPath = versionList[0]?.path;
-  const isGenerating = !url && imgStatus && ["pending", "cutting", "generating", "composing"].includes(imgStatus);
+  // "生成中" 判断：本格 ratio 在 pending_ratios 集合里（精确 per-ratio），而不再用整张图 status
+  const isGenerating = !url && !!isPending;
   return (
     <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : isGenerating ? "border-amber-600/60" : "border-zinc-700"} rounded p-1.5`}>
       <div className={`aspect-square rounded mb-1 overflow-hidden relative ${accent ? "bg-white" : "bg-zinc-800"}`}>

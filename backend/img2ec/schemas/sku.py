@@ -28,6 +28,7 @@ class SourceImageOut(BaseModel):
     master_urls: dict = Field(default_factory=dict)
     master_history_urls: dict = Field(default_factory=dict)
     derived_urls: dict = Field(default_factory=dict)
+    pending_ratios: list[str] = Field(default_factory=list)  # 当前在 Redis 排队/在跑的 ratio
 
     model_config = {"from_attributes": True}
 

@@ -53,6 +53,7 @@ export interface SourceImage {
   master_urls: Record<string, string>;
   master_history_urls?: Record<string, Array<{ path: string; url: string }>>;  // 多版本
   derived_urls: Record<string, string>;
+  pending_ratios?: string[];  // 当前在排队/在跑的 ratio（Redis 跨进程视图）
 }
 
 export type SKUStatus = "draft" | "ready" | "running" | "done" | "error" | "cancelled";
