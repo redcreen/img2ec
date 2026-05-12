@@ -4,74 +4,30 @@ Replaces ComfyUI Flux for scene background generation. Significantly higher qual
 (real marble texture, real caustics) at similar latency (~30-60s/image).
 
 Architecture:
-- subprocess `codex exec` with image-generation prompt
-- Per-call isolated CODEX_HOME (symlinks auth/config from real ~/.codex/);
-  generated images go to <isolated_home>/generated_images/<session>/ig_*.png
-- We pick up the PNG from the isolated home → guarantees zero cross-task contamination
+- Delegates to the codex-imagen skill (in-process import of gen.py)
+- gen.py manages its own isolated CODEX_HOME (tempdir + auth.json symlink)
 - Cost: charges against user's ChatGPT/OpenAI Codex subscription
 """
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
 import tempfile
-import time
-from contextlib import contextmanager
 from pathlib import Path
 
 from PIL import Image
 
+import sys as _sys
 
-REAL_CODEX_HOME = Path.home() / ".codex"
-CODEX_IMG_DIR = REAL_CODEX_HOME / "generated_images"  # 保留全局路径常量给可能的兼容场景
+_SKILL_SCRIPTS = Path.home() / ".codex/skills/codex-imagen/scripts"
+if not (_SKILL_SCRIPTS / "gen.py").is_file():
+    raise RuntimeError(
+        "codex-imagen skill not installed at ~/.codex/skills/codex-imagen/. "
+        "Install via the codex-imagen project's scripts/install.sh."
+    )
+if str(_SKILL_SCRIPTS) not in _sys.path:
+    _sys.path.insert(0, str(_SKILL_SCRIPTS))
 
-# 隔离 home 的父目录 — 固定位置便于启动时清理孤儿
-ISOLATED_HOMES_ROOT = Path("/tmp/img2ec-codex")
-# 真实 CODEX_HOME 里调用 codex 所必需的文件（auth、配置、agent 上下文）。
-# 用 symlink 暴露到隔离 home 里，让 codex 能正常认证/读 config。
-_LINKED_FILES = ("auth.json", "config.toml", "AGENTS.md", "hooks.json")
-_LINKED_DIRS  = ("bin",)
-
-
-def cleanup_orphan_codex_homes(max_age_seconds: int = 3600) -> int:
-    """删除 ISOLATED_HOMES_ROOT 下所有超过 max_age_seconds 的孤儿 home。
-    正常路径下 TemporaryDirectory 退出会自清；这个是兜底（SIGKILL / 崩溃后的泄漏）。
-    返回清掉的目录数。"""
-    if not ISOLATED_HOMES_ROOT.exists():
-        return 0
-    now = time.time()
-    removed = 0
-    for child in ISOLATED_HOMES_ROOT.iterdir():
-        try:
-            if child.is_dir() and (now - child.stat().st_mtime) > max_age_seconds:
-                shutil.rmtree(child, ignore_errors=True)
-                removed += 1
-        except OSError:
-            pass
-    return removed
-
-
-@contextmanager
-def _isolated_codex_home():
-    """每次 codex exec 用独立 CODEX_HOME（临时目录），auth/config 软链接过去。
-    保证 generated_images 物理隔离，并发零冲突。
-    退出 with 块自动清；崩溃泄漏由 cleanup_orphan_codex_homes() 兜底。"""
-    real = REAL_CODEX_HOME
-    ISOLATED_HOMES_ROOT.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="home-", dir=str(ISOLATED_HOMES_ROOT)) as td:
-        tmp = Path(td)
-        for name in _LINKED_FILES:
-            src = real / name
-            if src.exists():
-                try: (tmp / name).symlink_to(src)
-                except OSError: pass
-        for name in _LINKED_DIRS:
-            src = real / name
-            if src.exists():
-                try: (tmp / name).symlink_to(src, target_is_directory=True)
-                except OSError: pass
-        yield tmp
+import gen as _codex_imagen  # type: ignore
 
 
 class CodexImageError(RuntimeError):
@@ -139,58 +95,28 @@ def _run_codex_to_image(
     target_dims: tuple[int, int],
     output_path: Path,
     timeout: int,
-    codex_bin: str,
+    codex_bin: str = "codex",  # kept for API stability; ignored — gen.py always uses "codex"
 ) -> Path:
-    """跑 codex exec → 在隔离 CODEX_HOME 里取唯一 PNG → resize 输出。
-
-    并发零冲突：每次调用用 tempdir 当 CODEX_HOME，generated_images/ 是本次专属，
-    任何其他进程/应用并发跑 Codex 都不影响。
-    """
-    with _isolated_codex_home() as home:
-        cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
-        if input_image is not None:
-            cmd.extend(["-i", str(input_image)])
-
-        env = os.environ.copy()
-        env["CODEX_HOME"] = str(home)
-
+    """Run codex exec via the codex-imagen in-process API, then center-crop/resize to target_dims and save as JPEG."""
+    refs = [input_image] if input_image is not None else None
+    with tempfile.TemporaryDirectory(prefix="img2ec-codex-stage-") as td:
+        raw_png = Path(td) / "raw.png"
         try:
-            proc = subprocess.run(
-                cmd,
-                input=full_prompt.encode("utf-8"),
-                capture_output=True,
-                timeout=timeout,
-                env=env,
+            _codex_imagen.generate(
+                full_prompt,
+                raw_png,
+                refs=refs,
+                timeout_sec=timeout,
             )
-        except subprocess.TimeoutExpired as e:
-            raise CodexImageError(f"codex exec timed out after {timeout}s") from e
-        except FileNotFoundError as e:
-            raise CodexImageError(f"codex binary not found: {codex_bin}") from e
+        except _codex_imagen.GenError as e:
+            raise CodexImageError(str(e)) from e
 
-        if proc.returncode != 0:
-            stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
-            raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
-
-        # 本次专属 images dir — 不会有任何其他来源的图
-        img_dir = home / "generated_images"
-        candidates: list[Path] = []
-        if img_dir.exists():
-            candidates = list(img_dir.rglob("*.png"))
-        if not candidates:
-            stdout_tail = proc.stdout.decode("utf-8", errors="replace")[-300:]
-            raise CodexImageError(
-                f"no PNG produced in isolated home {home}. stdout tail: {stdout_tail!r}"
-            )
-        # 隔离 home 里通常只会有 1 张；保险起见取最新 mtime
-        newest = max(candidates, key=lambda p: p.stat().st_mtime)
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with Image.open(newest) as src:
+        with Image.open(raw_png) as src:
             rgb = src.convert("RGB")
             if rgb.size != target_dims:
                 rgb = _fit_to_target(rgb, target_dims)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             rgb.save(output_path, "JPEG", quality=92)
-
     return output_path
 
 
