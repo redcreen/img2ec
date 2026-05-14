@@ -104,7 +104,7 @@ def _resolve_image_key(v: Variant, key: str, sku) -> str:
     if key.startswith("size_"):
         # 支持 size_<style> (=img0 兼容) 和 size_<style>_img<N>
         import re
-        from img2ec.api.skus import _dimension_image_path_for_variant
+        from img2ec.api.skus._helpers import _dimension_image_path_for_variant
         rest = key[len("size_"):]
         m = re.match(r"^(white|template)(?:_img(\d+))?$", rest)
         if not m:

@@ -17,7 +17,7 @@ def regenerate_dimension_task(
     image_idx: int,
 ) -> str:
     """生成 (style, image_idx) 这一张尺寸图。状态用 Redis 跨进程共享。"""
-    from img2ec.api.skus import _dimension_image_path_for_variant
+    from img2ec.api.skus._helpers import _dimension_image_path_for_variant
     from img2ec.infra.codex_image import CodexImageError, generate_size_diagram
 
     key = f"{style}_img{image_idx}"

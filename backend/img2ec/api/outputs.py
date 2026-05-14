@@ -80,7 +80,7 @@ def _spec_for_path(variant: Variant, abs_path: Path) -> str:
 def _resolve_image_key(variant: Variant, key: str) -> Path | None:
     """同 variants.py / skus.py 的 resolver — 解析 img<idx>:<ratio> / size_<style>[_img<N>]。"""
     if key.startswith("size_"):
-        from img2ec.api.skus import _dimension_image_path_for_variant
+        from img2ec.api.skus._helpers import _dimension_image_path_for_variant
         m = re.match(r"^(white|template)(?:_img(\d+))?$", key[len("size_"):])
         if not m:
             return None
