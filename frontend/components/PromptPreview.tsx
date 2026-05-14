@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { Scene } from "@/lib/types";
 import { Lightbox } from "./Lightbox";
+import { SceneSelectModal } from "./SceneSelectModal";
 
 const RATIO_ORDER = ["1x1", "long", "3x4", "9x16", "16x9"] as const;
 const RATIO_LABEL: Record<string, string> = {
@@ -17,16 +18,20 @@ const RATIO_LABEL: Record<string, string> = {
 export function PromptPreview({
   pid, sid, scene,
   extraPrompt, extraWeight, onExtraPromptChange, onExtraWeightChange,
+  onSceneChanged,
 }: {
   pid: string; sid: string; scene?: Scene;
   extraPrompt: string;
   extraWeight: number;
   onExtraPromptChange: (s: string) => void;
   onExtraWeightChange: (w: number) => void;
+  onSceneChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [activeRatio, setActiveRatio] = useState<string>("1x1");
   const [coverLightbox, setCoverLightbox] = useState(false);
+  const [pickModal, setPickModal] = useState(false);
+  const [picking, setPicking] = useState(false);
   // 重新拉 prompt：让用户调 extra 后立刻能在「完整 prompt」里看到合成结果
   const swrKey = open ? `prompt-${sid}-${extraWeight}-${extraPrompt}` : null;
   const { data, error } = useSWR(
@@ -48,7 +53,15 @@ export function PromptPreview({
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] opacity-50 uppercase mb-0.5">模板</div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="text-[10px] opacity-50 uppercase">模板</div>
+            <button
+              onClick={() => setPickModal(true)}
+              disabled={picking}
+              className="text-[10px] px-2 py-0.5 rounded bg-blue-600/15 hover:bg-blue-600/30 border border-blue-500/50 hover:border-blue-400 text-blue-200 transition disabled:opacity-50"
+              title="更换 SKU 默认模板（生成时所有选中图都用这个）"
+            >⮂ 更换模板</button>
+          </div>
           {scene ? (
             <>
               <div className="text-xs font-semibold">{scene.name}</div>
@@ -56,13 +69,31 @@ export function PromptPreview({
               <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.desc || scene.prompt.slice(0, 60)}</div>
             </>
           ) : (
-            <div className="text-xs opacity-60">未设置模板</div>
+            <div className="text-xs opacity-60">未设置模板 — 点"⮂ 更换模板"选一个</div>
           )}
         </div>
       </div>
 
       {coverLightbox && scene?.cover_url && (
         <Lightbox src={scene.cover_url} alt={scene.name} onClose={() => setCoverLightbox(false)} />
+      )}
+
+      {pickModal && (
+        <SceneSelectModal
+          pid={pid}
+          imageName="SKU 默认模板（生成时所有选中图都用这个）"
+          currentSceneId={scene?.id ?? null}
+          allowNull={false}
+          onClose={() => setPickModal(false)}
+          onPick={async (sceneId) => {
+            if (!sceneId) return;
+            setPicking(true);
+            try {
+              await api.patchSku(pid, sid, { scene_id: sceneId });
+              onSceneChanged?.();
+            } finally { setPicking(false); }
+          }}
+        />
       )}
 
       {/* 附加提示词（模板 prompt 下方） — 影响这次生成 */}

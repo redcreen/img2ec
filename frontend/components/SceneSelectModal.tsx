@@ -4,15 +4,16 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import { FESTIVALS, type Scene } from "@/lib/types";
 
-/** 给单张原图选模板（per-image scene override）。点 "用默认" = scene_id=null。 */
+/** 选模板。allowNull=true 时显示"用 SKU 默认"按钮（清除覆盖）；SKU 自身改模板时传 false。 */
 export function SceneSelectModal({
-  pid, currentSceneId, imageName, onPick, onClose,
+  pid, currentSceneId, imageName, onPick, onClose, allowNull = false,
 }: {
   pid: string;
   currentSceneId?: string | null;
   imageName: string;
   onPick: (sceneId: string | null) => Promise<void> | void;
   onClose: () => void;
+  allowNull?: boolean;
 }) {
   const { data: scenes } = useSWR(`scenes-${pid}`, () => api.listScenes(pid));
   const [filter, setFilter] = useState<string>("");
@@ -45,15 +46,19 @@ export function SceneSelectModal({
         </div>
 
         <div className="flex gap-1 mb-3 flex-wrap items-center">
-          <button onClick={() => pick(null)} disabled={busy}
-            className={`text-[11px] px-2.5 py-1 rounded border ${
-              currentSceneId === null || currentSceneId === undefined
-                ? "bg-emerald-700 text-white border-emerald-600"
-                : "bg-zinc-800 border-zinc-700 hover:border-emerald-500"
-            } disabled:opacity-40`}
-            title="清除 per-image 模板，回退到 SKU 默认模板"
-          >🌟 用 SKU 默认模板</button>
-          <span className="text-[10px] opacity-50 mx-2">·</span>
+          {allowNull && (
+            <>
+              <button onClick={() => pick(null)} disabled={busy}
+                className={`text-[11px] px-2.5 py-1 rounded border ${
+                  currentSceneId === null || currentSceneId === undefined
+                    ? "bg-emerald-700 text-white border-emerald-600"
+                    : "bg-zinc-800 border-zinc-700 hover:border-emerald-500"
+                } disabled:opacity-40`}
+                title="清除 per-image 模板，回退到 SKU 默认模板"
+              >🌟 用 SKU 默认模板</button>
+              <span className="text-[10px] opacity-50 mx-2">·</span>
+            </>
+          )}
           <span className="text-[10px] opacity-60">节庆:</span>
           <Chip label="全部" active={!filter} onClick={() => setFilter("")} />
           {FESTIVALS.map((f) => (

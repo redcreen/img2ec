@@ -289,6 +289,31 @@ def delete_image(project_id: str, sku_id: str, image_id: str, db: Session = Depe
     db.commit()
 
 
+class SkuPatchRequest(BaseModel):
+    scene_id: str | None = None  # 改 SKU 默认模板
+
+
+@router.patch("/{sku_id}", response_model=SKUOut)
+def patch_sku(
+    project_id: str, sku_id: str,
+    payload: SkuPatchRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """更新 SKU 字段（目前只支持 scene_id）。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    if payload.scene_id is not None:
+        from img2ec.models import Scene
+        sc = db.get(Scene, payload.scene_id)
+        if sc is None or sc.project_id != project_id:
+            raise HTTPException(404, "scene not found in this project")
+        sku.scene_id = payload.scene_id
+    db.commit()
+    db.refresh(sku)
+    return _enrich(sku)
+
+
 class ImagePatchRequest(BaseModel):
     scene_id: str | None = None  # null = 清除 per-image override，走 SKU 默认
 

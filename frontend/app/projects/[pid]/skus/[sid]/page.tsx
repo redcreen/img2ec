@@ -32,7 +32,6 @@ export default function SkuDetailPage() {
   const [extraWeight, setExtraWeight] = useState(0.5);
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
   const [selectedImgIds, setSelectedImgIds] = useState<Set<string>>(new Set());
-  const [sceneModalImgId, setSceneModalImgId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // 当 sku 加载后，默认激活第一个变体
@@ -274,7 +273,6 @@ export default function SkuDetailPage() {
                   </div>
                   <div className="space-y-2 max-h-[480px] overflow-y-auto">
                     {variantImages.map(img => {
-                      const sceneForThisImg = scenes?.find(s => s.id === (img.scene_id || sku.scene_id));
                       const isSelected = selectedImgIds.has(img.id);
                       return (
                         <div key={img.id}
@@ -305,17 +303,6 @@ export default function SkuDetailPage() {
                             <div className="text-[10px] opacity-55 mt-1 flex items-center gap-1.5">
                               <StatusPill status={img.status} />
                             </div>
-                            <button
-                              onClick={() => setSceneModalImgId(img.id)}
-                              className="text-[10px] mt-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center gap-1 max-w-full"
-                              title="为该原图指定模板（每张图可独立）"
-                            >
-                              <span className="opacity-70">📋 模板:</span>
-                              <span className="truncate font-semibold">
-                                {sceneForThisImg?.name || "（未指定）"}
-                              </span>
-                              {img.scene_id && <span className="text-[9px] text-emerald-400">(已覆盖)</span>}
-                            </button>
                             {img.err_msg && (
                               <div className="text-[10px] text-red-400 truncate mt-0.5" title={img.err_msg}>
                                 {img.err_msg}
@@ -339,18 +326,6 @@ export default function SkuDetailPage() {
                   </div>
                 </>
               )}
-              {sceneModalImgId && (
-                <SceneSelectModal
-                  pid={pid}
-                  imageName={variantImages.find(i => i.id === sceneModalImgId)?.name || ""}
-                  currentSceneId={variantImages.find(i => i.id === sceneModalImgId)?.scene_id || sku.scene_id}
-                  onClose={() => setSceneModalImgId(null)}
-                  onPick={async (sceneId) => {
-                    await api.patchImage(pid, sid, sceneModalImgId!, { scene_id: sceneId });
-                    await mutate();
-                  }}
-                />
-              )}
             </div>
 
             {/* 2. 模板 + Prompt */}
@@ -361,6 +336,7 @@ export default function SkuDetailPage() {
                 extraWeight={extraWeight}
                 onExtraPromptChange={setExtraPrompt}
                 onExtraWeightChange={setExtraWeight}
+                onSceneChanged={() => mutate()}
               />
             </div>
 

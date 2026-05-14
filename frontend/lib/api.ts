@@ -148,6 +148,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  patchSku: (pid: string, sid: string, body: { scene_id?: string | null }) =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   previewPrompt: (pid: string, sid: string, extraPrompt = "", extraWeight = 0) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {
