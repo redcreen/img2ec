@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { FESTIVALS, type AIPreview } from "@/lib/types";
 import { Preview } from "./AIKeywordsModal";
@@ -23,6 +23,28 @@ export function AIReferenceModal({
     setFile(f);
     setFilePreview(f ? URL.createObjectURL(f) : null);
   };
+
+  // 支持 ⌘V / Ctrl+V 直接粘贴剪贴板里的图。Modal 打开期间监听 document
+  // paste；preview 阶段（已经反推完，下一步是保存）不再接管粘贴。
+  useEffect(() => {
+    if (preview) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const it of Array.from(items)) {
+        if (it.kind === "file" && it.type.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) {
+            e.preventDefault();
+            onPick(f);
+            return;
+          }
+        }
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [preview, filePreview]);
 
   const runExpand = async () => {
     if (!file) { setErr("请先选择一张参考图"); return; }
@@ -93,7 +115,7 @@ export function AIReferenceModal({
                       className="hidden"
                       onChange={(e) => onPick(e.target.files?.[0] || null)}
                     />
-                    <div className="text-sm">点击选择图片</div>
+                    <div className="text-sm">点击选择图片 · 或直接 ⌘V / Ctrl+V 粘贴</div>
                     <div className="text-[10px] opacity-50 mt-1">JPG / PNG / WebP，建议 1MB 以上质量好</div>
                   </label>
                 )}
