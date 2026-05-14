@@ -460,6 +460,7 @@ def process_sku(
     extra_negative_prompt = (payload.extra_negative_prompt if payload else "") or ""
     extra_weight = float(payload.extra_weight if payload else 0.0)
     disable_scene = bool(payload.disable_scene if payload else False)
+    overwrite = bool(payload.overwrite if payload else False)
     # 关闭模板 OR SKU 没模板 → 必须有 extra_prompt 兜底
     effective_no_scene = disable_scene or sku.scene_id is None
     if effective_no_scene and not extra_prompt.strip():
