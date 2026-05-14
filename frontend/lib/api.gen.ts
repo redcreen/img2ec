@@ -37,7 +37,11 @@ export interface paths {
         delete: operations["delete_project_api_projects__project_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Patch Project
+         * @description 改名 / 改描述。改名会重命名磁盘目录并把所有子资源里的绝对路径前缀替换。
+         */
+        patch: operations["patch_project_api_projects__project_id__patch"];
         trace?: never;
     };
     "/api/projects/{project_id}/scenes": {
@@ -1023,6 +1027,13 @@ export interface components {
              */
             updated_at: string;
         };
+        /** ProjectPatch */
+        ProjectPatch: {
+            /** Name */
+            name?: string | null;
+            /** Desc */
+            desc?: string | null;
+        };
         /** QueueKeywordsRequest */
         QueueKeywordsRequest: {
             /** Keywords */
@@ -1455,6 +1466,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_api_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectOut"];
+                };
             };
             /** @description Validation Error */
             422: {

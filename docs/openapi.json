@@ -110,6 +110,57 @@
           }
         }
       },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Patch Project",
+        "description": "改名 / 改描述。改名会重命名磁盘目录并把所有子资源里的绝对路径前缀替换。",
+        "operationId": "patch_project_api_projects__project_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "projects"
@@ -3277,6 +3328,36 @@
           "updated_at"
         ],
         "title": "ProjectOut"
+      },
+      "ProjectPatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "desc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desc"
+          }
+        },
+        "type": "object",
+        "title": "ProjectPatch"
       },
       "QueueKeywordsRequest": {
         "properties": {

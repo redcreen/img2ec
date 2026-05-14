@@ -17,6 +17,8 @@ export const api = {
   listProjects: () => req<import("./types").Project[]>("/api/projects"),
   createProject: (payload: { name: string; desc?: string; copy_default_scenes?: boolean }) =>
     req<import("./types").Project>("/api/projects", { method: "POST", body: JSON.stringify(payload) }),
+  patchProject: (id: string, payload: { name?: string; desc?: string }) =>
+    req<import("./types").Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteProject: (id: string) => req<void>(`/api/projects/${id}`, { method: "DELETE" }),
 
   listScenes: (pid: string) => req<import("./types").Scene[]>(`/api/projects/${pid}/scenes`),
