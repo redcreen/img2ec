@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { Scene } from "@/lib/types";
 import type { SceneMode, ReferenceImage } from "@/lib/genConfig";
+import { appendPrompt, getPresets } from "@/lib/promptPresets";
 import { Lightbox } from "./Lightbox";
 import { SceneSelectModal } from "./SceneSelectModal";
 
@@ -219,6 +220,18 @@ export function PromptPreview({
           </div>
           <div className="text-[10px] opacity-50">不持久化 · 只影响本次生成</div>
         </div>
+        {/* 一键插入模板 */}
+        <div className="flex flex-wrap gap-1">
+          {getPresets(mode).filter(p => p.kind === "positive").map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => onExtraPromptChange(appendPrompt(extraPrompt, p.text))}
+              className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 hover:border-green-500 hover:text-green-200 transition"
+              title={p.text}
+            >+ {p.label}</button>
+          ))}
+        </div>
         <textarea
           value={extraPrompt}
           onChange={(e) => onExtraPromptChange(e.target.value)}
@@ -265,6 +278,16 @@ export function PromptPreview({
           <div className="text-[11px] uppercase tracking-wide opacity-70">
             <span className="text-red-400 mr-1">⊘</span>附加提示词 · 负向（绝对不要出现）
           </div>
+          {/* 负向预设 */}
+          {getPresets(mode).filter(p => p.kind === "negative").map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => onExtraNegativePromptChange(appendPrompt(extraNegativePrompt, p.text))}
+              className="text-[10px] px-2 py-0.5 mr-1 rounded bg-zinc-800 border border-zinc-700 hover:border-red-500 hover:text-red-200 transition"
+              title={p.text}
+            >+ {p.label}</button>
+          ))}
           <textarea
             value={extraNegativePrompt}
             onChange={(e) => onExtraNegativePromptChange(e.target.value)}

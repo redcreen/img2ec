@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# 提交前快速检查：只针对已 staged 的变更，避免每次卡半分钟。
+# 启用方式（首次 clone 后跑一次即可）：
+#     git config core.hooksPath .husky
+#
+# 跳过：git commit --no-verify （只在你明确知道在做啥时用）
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+# 拿到 staged 的文件列表
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+
+# --- 前端：tsc + eslint（只在 frontend/ 有改动时跑）
+if echo "$STAGED" | grep -qE '^frontend/.*\.(ts|tsx|js|jsx)$'; then
+  echo "[pre-commit] frontend tsc + lint…"
+  (
+    cd frontend
+    npx tsc --noEmit
+    npx next lint --max-warnings 200
+  )
+fi
+
+# --- 后端：ruff（只在 backend/ 有改动时跑；ruff 未装就静默跳过）
+if echo "$STAGED" | grep -qE '^backend/.*\.py$'; then
+  if [ -x backend/.venv/bin/ruff ]; then
+    echo "[pre-commit] backend ruff…"
+    (cd backend && .venv/bin/ruff check img2ec)
+  else
+    echo "[pre-commit] skip ruff (backend/.venv/bin/ruff 不存在)"
+  fi
+fi
+
+# --- 后端契约 + 前端类型 漂移提醒（不卡，只 warn）
+if echo "$STAGED" | grep -qE '^backend/img2ec/(api|schemas)/.*\.py$'; then
+  if ! echo "$STAGED" | grep -qE '^(frontend/lib/api\.gen\.ts|docs/openapi\.json)$'; then
+    echo ""
+    echo "⚠️  改了后端 API/schemas，但 lib/api.gen.ts / docs/openapi.json 没在这次 commit 里。"
+    echo "    建议: (cd frontend && npm run gen:api) 然后把生成的两个文件一起 commit。"
+    echo ""
+  fi
+fi
+
+echo "[pre-commit] OK"

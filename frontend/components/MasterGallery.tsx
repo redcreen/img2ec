@@ -138,13 +138,21 @@ export function MasterGallery({
     );
   }
 
-  const onDeleteAllForImage = async (img: SourceImage) => {
-    if (tabBusy) return;
-    if (!confirm(`确认删除「${img.name}」下所有 master 版本？\n（含历史版本 + 派生图，不可撤销）`)) return;
-    setTabBusy(true);
-    try { await api.deleteAllMastersForImage(pid, sid, img.id); onChanged(); }
-    catch (e: any) { alert("批删失败：" + e.message); }
-    finally { setTabBusy(false); }
+  const onDeleteAllForImage = (img: SourceImage) => {
+    undo.enqueue({
+      id: `bulk-master:${img.id}`,
+      label: `「${img.name}」全部 master`,
+      doDelete: async () => {
+        try {
+          await api.deleteAllMastersForImage(pid, sid, img.id);
+          onChanged();
+        } catch (e: any) {
+          alert("批删失败：" + e.message);
+          onChanged();
+        }
+      },
+      onCancel: () => onChanged(),
+    });
   };
   const onRegenImage = async (img: SourceImage) => {
     if (tabBusy) return;
@@ -168,13 +176,21 @@ export function MasterGallery({
     } catch (e: any) { alert("提交失败：" + e.message); }
     finally { setTabBusy(false); }
   };
-  const onDeleteAllDim = async () => {
-    if (tabBusy) return;
-    if (!confirm("确认删除该变体下所有尺寸图？\n（不可撤销）")) return;
-    setTabBusy(true);
-    try { await api.deleteAllDimension(pid, sid, variant.id); onChanged(); }
-    catch (e: any) { alert("批删失败：" + e.message); }
-    finally { setTabBusy(false); }
+  const onDeleteAllDim = () => {
+    undo.enqueue({
+      id: `bulk-dim:${variant.id}`,
+      label: `「${variant.color_name}」全部尺寸图`,
+      doDelete: async () => {
+        try {
+          await api.deleteAllDimension(pid, sid, variant.id);
+          onChanged();
+        } catch (e: any) {
+          alert("批删失败：" + e.message);
+          onChanged();
+        }
+      },
+      onCancel: () => onChanged(),
+    });
   };
   const onRegenAllDim = async () => {
     if (tabBusy) return;
@@ -325,6 +341,14 @@ export function MasterGallery({
       {active.kind === "image" && (() => {
         const idx = Math.min(active.idx, images.length - 1);
         const img = images[idx];
+        // 批量删除该原图所有 master 排队中 → 全网格视作空（10s 内可撤销）
+        if (undo.isPending(`bulk-master:${img.id}`)) {
+          return (
+            <div className="text-xs opacity-60 py-6 text-center">
+              正在删除「{img.name}」全部 master（右下角可撤销）…
+            </div>
+          );
+        }
         const hasCloseup = CLOSEUP_KEYS.some((k) => img.master_urls?.[k]);
         return (
           <>
@@ -395,7 +419,12 @@ export function MasterGallery({
         );
       })()}
 
-      {active.kind === "dim" && (
+      {active.kind === "dim" && undo.isPending(`bulk-dim:${variant.id}`) && (
+        <div className="text-xs opacity-60 py-6 text-center">
+          正在删除「{variant.color_name}」全部尺寸图（右下角可撤销）…
+        </div>
+      )}
+      {active.kind === "dim" && !undo.isPending(`bulk-dim:${variant.id}`) && (
         <div>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <div className="text-[11px] opacity-60">所有尺寸图（{dimEntries.length}）</div>

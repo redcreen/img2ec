@@ -31,6 +31,25 @@
 - [x] `AGENTS.md` 开发规约（一处 prompt 一处 adapter，nullable 字段必须 fallback，新 flow 必须 e2e，hooks 顶部声明）
 - [ ] Pre-commit hook — **deferred**（CI 已兜底）
 
+## 2026-05-15 第二轮
+
+**全部 deferred 收尾（除 skus.py 拆包另行）**：
+- 提示词模板下拉（参考图/模板/都不选 三组预设，一键插入）
+- 单图 / 批量 / 原图 删除全接 useUndoableDelete（10s 撤销，不弹窗）
+- ErrorBoundary + EmptyState 通用化
+- husky pre-commit：tsc + eslint + ruff
+- CI 加 OpenAPI 漂移守卫（gen:api 后 git diff --exit-code）
+- e2e 增项目改名 / 删除 / 参考图模式切换 流程
+- page.tsx 抽 SkuHeader 组件
+
+**取消的 deferred**：
+- "抠产品保留场景 B 路（带 mask 的真 inpaint）"：用户明确"没 API"否了，
+  已被 "C 路 参考图驱动模式"完整替代，正式去掉这条 TODO。
+
+**仍 deferred**：
+- `backend/img2ec/api/skus.py` 拆包到 `skus/` 子模块（~900 行）：机械搬运
+  量大，单独排期。
+
 ## 总览
 
 **已经修复 / 锁定**：

@@ -35,6 +35,10 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -47,3 +51,20 @@ jobs:
         run: npm test
       - name: lint
         run: npm run lint
+      # OpenAPI 漂移守卫：本地必须先跑 npm run gen:api 再提交；
+      # CI 重生一遍，git diff 非空就挂，强制 lib/api.gen.ts 与后端契约一致
+      - name: install backend (for openapi dump)
+        run: |
+          cd ../backend
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: openapi drift check
+        run: |
+          cd ../backend
+          python scripts/dump_openapi.py
+          cd ../frontend
+          npx openapi-typescript ../docs/openapi.json -o lib/api.gen.ts
+          if ! git diff --exit-code -- ../docs/openapi.json lib/api.gen.ts; then
+            echo "::error::OpenAPI/api.gen.ts drift detected — run 'npm run gen:api' locally and commit"
+            exit 1
+          fi

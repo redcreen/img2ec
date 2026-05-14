@@ -10,6 +10,16 @@ Read this file before doing any non-trivial work in this repo. These rules exist
 - **SKU disk layout uses UUID suffix.** Path is `<project>/<sku_name>-<id8>/`. Renaming a SKU does NOT rename the directory. Two SKUs with the same display name must coexist on disk.
 - **Frontend gen-config has one reducer.** `frontend/lib/genConfig.ts` is the single source of truth for "本次生成"配置 (prompt/weight/negative/useTemplate/selected). Don't sprinkle `useState` across `page.tsx` for these fields.
 
+## Local setup (one-time)
+
+After `git clone`, enable the pre-commit hook (frontend tsc + lint + backend ruff, only on staged paths):
+
+```sh
+git config core.hooksPath .husky
+```
+
+Bypass with `git commit --no-verify` only when you know exactly why.
+
 ## Workflow rules
 
 - **Change a backend route → regenerate types.** Run `npm run gen:api` in `frontend/` after any FastAPI signature change. The committed `frontend/lib/api.gen.ts` must match the live OpenAPI dump.

@@ -3,31 +3,33 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { api } from "@/lib/api";
-import { PathBar } from "@/components/PathBar";
-import { StatusPill } from "@/components/StatusPill";
 import { MasterGallery } from "@/components/MasterGallery";
 import { PlatformTabs } from "@/components/PlatformTabs";
 import { RatioSelector } from "@/components/RatioSelector";
 import { PromptPreview } from "@/components/PromptPreview";
 import { VariantTabs } from "@/components/VariantTabs";
 import { Lightbox } from "@/components/Lightbox";
-import { ConcurrencyControl } from "@/components/ConcurrencyControl";
 import { SceneSelectModal } from "@/components/SceneSelectModal";
 import { SourceImageList } from "@/components/SourceImageList";
+import { SkuHeader } from "@/components/SkuHeader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toProcessExtra, useGenConfig } from "@/lib/genConfig";
-import { UndoProvider } from "@/lib/useUndoableDelete";
+import { UndoProvider, useUndo } from "@/lib/useUndoableDelete";
 
 export default function SkuDetailPage() {
   return (
-    <UndoProvider>
-      <SkuDetailPageInner />
-    </UndoProvider>
+    <ErrorBoundary>
+      <UndoProvider>
+        <SkuDetailPageInner />
+      </UndoProvider>
+    </ErrorBoundary>
   );
 }
 
 function SkuDetailPageInner() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
   const router = useRouter();
+  const undo = useUndo();
   const { data: sku, mutate } = useSWR(
     sid ? `sku-${sid}` : null,
     () => api.getSku(pid, sid),
@@ -40,8 +42,6 @@ function SkuDetailPageInner() {
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [genConfig, dispatchGen] = useGenConfig(sid);
-  const [renamingSku, setRenamingSku] = useState(false);
-  const [skuNameDraft, setSkuNameDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -114,14 +114,21 @@ function SkuDetailPageInner() {
     }
   };
 
-  const onDeleteImage = async (iid: string, name: string) => {
-    if (!confirm(`删除原图「${name}」？该原图对应的生成图也会失效（文件保留在磁盘）。`)) return;
-    try {
-      await api.deleteImage(pid, sid, iid);
-      mutate();
-    } catch (e: any) {
-      alert("删除失败：" + e.message);
-    }
+  const onDeleteImage = (iid: string, name: string) => {
+    undo.enqueue({
+      id: `img:${iid}`,
+      label: `原图 ${name}`,
+      doDelete: async () => {
+        try {
+          await api.deleteImage(pid, sid, iid);
+          mutate();
+        } catch (e: any) {
+          alert("删除原图失败：" + e.message);
+          mutate();
+        }
+      },
+      onCancel: () => mutate(),
+    });
   };
   const onCancel = async () => {
     if (!confirm("停止处理？已生成的图会保留，未生成的不再继续。")) return;
@@ -193,80 +200,17 @@ function SkuDetailPageInner() {
           <span className="text-amber-200/70 text-[10px]">· 可继续点 ▶ 生成添加新任务（已在跑的图会跳过）</span>
         </div>
       )}
-      {/* Top header */}
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
-        <div className="flex items-center gap-3 mb-2 flex-wrap">
-          {renamingSku ? (
-            <form
-              className="flex items-center gap-1.5"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const next = skuNameDraft.trim();
-                if (!next || next === sku.name) { setRenamingSku(false); return; }
-                try {
-                  const updated = await api.patchSku(pid, sid, { name: next });
-                  await mutate(updated, { revalidate: true });
-                  setRenamingSku(false);
-                } catch (err: any) { alert(err.message || "改名失败"); }
-              }}
-            >
-              <input
-                value={skuNameDraft}
-                onChange={(e) => setSkuNameDraft(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => { if (e.key === "Escape") setRenamingSku(false); }}
-                className="px-2 py-0.5 text-base font-bold bg-zinc-950 border border-blue-500 rounded outline-none"
-              />
-              <button type="submit" className="text-[10px] px-2 py-1 bg-blue-600 rounded">保存</button>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()} /* 防 input 失焦先于 click */
-                onClick={() => setRenamingSku(false)}
-                className="text-[10px] px-2 py-1 bg-zinc-700 rounded"
-              >取消</button>
-            </form>
-          ) : (
-            <strong
-              className="text-base cursor-pointer hover:bg-zinc-800 px-1 rounded inline-flex items-center gap-1"
-              title="点击改名"
-              onClick={() => { setSkuNameDraft(sku.name); setRenamingSku(true); }}
-            >
-              {sku.name}
-              <span className="opacity-40 text-[10px]">✏️</span>
-            </strong>
-          )}
-          <StatusPill status={sku.status} />
-          {scene && (
-            <span className="text-[11px] opacity-60">
-              · 模板：<span className="text-zinc-200">{scene.name}</span>
-            </span>
-          )}
-          <div className="flex-1" />
-          <ConcurrencyControl />
-          {sku.status === "running" && (
-            <button onClick={onCancel}
-              className="px-3 py-2 text-sm border border-amber-500 text-amber-300 rounded font-semibold hover:bg-amber-500/20">
-              ⏹ 停止
-            </button>
-          )}
-          {sku.status === "done" && (
-            <a href={api.downloadSku(sku.id)}
-              className="px-3 py-2 text-sm bg-blue-600 rounded font-semibold">
-              ⬇ 一键下载 zip
-            </a>
-          )}
-          <button onClick={onDelete}
-            className="text-red-400 border border-red-400 rounded px-2 py-1 text-xs">删除</button>
-        </div>
-        <PathBar path={skuPath} label="SKU 目录" />
-        {sku.status === "running" && currentImg && (
-          <div className="mt-3 text-[11px] flex gap-2 flex-wrap">
-            <span>处理 {activeVariant?.color_name} 第 <strong>{currentImgIdx + 1}/{totalImages}</strong>: <span className="opacity-80">{currentImg.name}</span></span>
-            <span className="opacity-40">|</span>
-            <span className="opacity-70">{STAGE_LABEL[currentImg.status]} ({currentImg.progress}%)</span>
-          </div>
-        )}
-      </div>
+      <SkuHeader
+        sku={sku} scene={scene} skuPath={skuPath}
+        pid={pid} sid={sid}
+        activeVariant={activeVariant}
+        currentImg={currentImg}
+        currentImgIdx={currentImgIdx}
+        totalImages={totalImages}
+        onCancel={onCancel}
+        onDelete={onDelete}
+        onAfterRename={async () => { await mutate(); }}
+      />
 
       {/* 变体 tab */}
       <VariantTabs
@@ -305,7 +249,7 @@ function SkuDetailPageInner() {
                 />
               </div>
               <SourceImageList
-                images={variantImages}
+                images={variantImages.filter((im) => !undo.isPending(`img:${im.id}`))}
                 selected={genConfig.selectedImgIds}
                 onToggleSelect={(id) => dispatchGen({ type: "toggle_img", id })}
                 onSelectAll={() => dispatchGen({ type: "select_all", ids: variantImages.map(i => i.id) })}
