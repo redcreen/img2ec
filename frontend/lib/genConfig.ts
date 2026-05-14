@@ -2,7 +2,7 @@
 /** "本次生成"的临时配置 — 全部从 page.tsx 散落 useState 收到一个 reducer。
  *  reducer 是纯函数，可单测。
  *  通过 useGenConfig(sid) 自动用 localStorage 按 SKU 持久化（刷新可恢复）。 */
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
 
 export type SceneMode = "template" | "reference" | "none";
 
@@ -138,17 +138,34 @@ function deserialize(raw: string): GenConfig | null {
   }
 }
 
-/** 主 hook：传 sid 启用 localStorage 持久化；不传则纯内存。 */
+/** 主 hook：传 sid 启用 localStorage 持久化；不传则纯内存。
+ *  用 useReducer lazy initializer，第一次渲染就拿持久化值 —— 没有
+ *  "先 initialGenConfig 再 hydrate" 的窗口，所以不会被写 effect 抢先
+ *  覆盖 localStorage（之前正是这个 race 导致刷新后参考图丢失）。 */
 export function useGenConfig(sid?: string) {
-  const [state, dispatch] = useReducer(genConfigReducer, initialGenConfig);
+  const [state, dispatch] = useReducer(genConfigReducer, sid, (currentSid) => {
+    if (!currentSid || typeof window === "undefined") return initialGenConfig;
+    const raw = window.localStorage.getItem(LS_PREFIX + currentSid);
+    if (!raw) return initialGenConfig;
+    return deserialize(raw) ?? initialGenConfig;
+  });
 
-  // 初始 hydrate（仅一次；依赖 sid）
+  // 切换到不同 SKU 时重新 hydrate（lazy init 只在 mount 跑一次）
+  const lastSidRef = useRef(sid);
   useEffect(() => {
-    if (!sid || typeof window === "undefined") return;
+    if (lastSidRef.current === sid) return;
+    lastSidRef.current = sid;
+    if (!sid || typeof window === "undefined") {
+      dispatch({ type: "reset" });
+      return;
+    }
     const raw = window.localStorage.getItem(LS_PREFIX + sid);
-    if (!raw) return;
+    if (!raw) {
+      dispatch({ type: "reset" });
+      return;
+    }
     const restored = deserialize(raw);
-    if (restored) dispatch({ type: "hydrate", value: restored });
+    dispatch({ type: "hydrate", value: restored ?? initialGenConfig });
   }, [sid]);
 
   // 状态变化时写回 localStorage
