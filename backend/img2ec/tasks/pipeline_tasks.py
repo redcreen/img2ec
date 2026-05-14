@@ -155,36 +155,44 @@ def process_image_task(
         finally:
             client.close()
 
-        # Phase 2.5: 文案生成（仅在 SKU 全部图都 done 且尚无 copy 时）
+        # Phase 2.5: 文案 + 详情页（按当前 image 所在 variant 维度独立触发）
         db.refresh(sku)
-        images = list(sku.images)
-        all_done = all(i.status == ImageStatus.DONE.value for i in images)
-        existing_copy = db.query(PlatformOutputCopy).filter_by(sku_id=sku.id).count()
-        if all_done and existing_copy == 0 and images:
-            try:
-                from img2ec.core.copy_gen import generate_copy_for_sku
-                from img2ec.infra.llm_provider import CodexCLIProvider, LLMProviderError
-                # 用第一张已 done 的 master 1x1 做识别基准（最方正）
-                first_img = images[0]
-                master_1x1 = first_img.master_paths.get("1x1") if first_img.master_paths else None
-                if master_1x1:
-                    provider = CodexCLIProvider()
-                    try:
-                        result = generate_copy_for_sku(
-                            provider=provider,
-                            image_path=Path(master_1x1),
-                            sku_name=sku.name,
-                            scene_name=scene.name if scene else "",
-                            scene_category=scene.category if scene else "",
-                        )
-                        _persist_copy(db, sku.id, result)
-                        _render_detail_pages(
-                            db, sku.id, skud, Path(img.name).stem, img.master_paths or {}
-                        )
-                    except LLMProviderError:
-                        pass
-            except Exception:
-                pass
+        variant = img.variant
+        if variant is not None:
+            variant_images = list(variant.images)
+            variant_done = (
+                bool(variant_images)
+                and all(i.status == ImageStatus.DONE.value for i in variant_images)
+            )
+            existing_copy = (
+                db.query(PlatformOutputCopy).filter_by(variant_id=variant.id).count()
+            )
+            if variant_done and existing_copy == 0:
+                try:
+                    from img2ec.core.copy_gen import generate_copy_for_sku
+                    from img2ec.infra.llm_provider import CodexCLIProvider, LLMProviderError
+                    first_img = variant_images[0]
+                    master_1x1 = (
+                        first_img.master_paths.get("1x1") if first_img.master_paths else None
+                    )
+                    if master_1x1:
+                        provider = CodexCLIProvider()
+                        try:
+                            result = generate_copy_for_sku(
+                                provider=provider,
+                                image_path=Path(master_1x1),
+                                sku_name=sku.name,
+                                scene_name=scene.name if scene else "",
+                                scene_category=scene.category if scene else "",
+                            )
+                            _persist_copy(db, variant.id, result)
+                            _render_detail_pages(
+                                db, variant.id, skud, img.master_paths or {}
+                            )
+                        except LLMProviderError:
+                            pass
+                except Exception:
+                    pass
 
         return "done"
     finally:
@@ -202,7 +210,14 @@ def process_image_task(
 
 
 def _aggregate_sku_status(sku: SKU, db) -> str:
-    images = db.query(SourceImage).filter_by(sku_id=sku.id).all()
+    # source_images 没有 sku_id 列；走 variant 关联到 SKU
+    from img2ec.models import Variant
+    variant_ids = [v.id for v in sku.variants]
+    images = (
+        db.query(SourceImage)
+        .filter(SourceImage.variant_id.in_(variant_ids))
+        .all() if variant_ids else []
+    )
     statuses = {i.status for i in images}
     if statuses & {ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
                    ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value}:
@@ -214,14 +229,15 @@ def _aggregate_sku_status(sku: SKU, db) -> str:
     return SKUStatus.READY.value
 
 
-def _persist_copy(db, sku_id: str, result: dict) -> None:
+def _persist_copy(db, variant_id: str, result: dict) -> None:
+    """把 LLM 结果按平台写入 PlatformOutputCopy。每个 variant 一组（3 个平台）。"""
     import uuid
     from img2ec.models import Platform, PlatformOutputCopy
 
     for plat_key in ("douyin", "shipinhao"):
         d = result.get(plat_key, {})
         db.add(PlatformOutputCopy(
-            id=str(uuid.uuid4()), sku_id=sku_id, platform=plat_key,
+            id=str(uuid.uuid4()), variant_id=variant_id, platform=plat_key,
             title=d.get("title", ""), subtitle=d.get("subtitle", ""),
             selling_points=d.get("selling_points", []),
             description_md=d.get("description_md", ""),
@@ -232,7 +248,7 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
         ))
     xhs = result.get("xiaohongshu", {})
     db.add(PlatformOutputCopy(
-        id=str(uuid.uuid4()), sku_id=sku_id, platform=Platform.XIAOHONGSHU.value,
+        id=str(uuid.uuid4()), variant_id=variant_id, platform=Platform.XIAOHONGSHU.value,
         title=xhs.get("post_title", ""), subtitle="",
         selling_points=xhs.get("selling_points", []),
         description_md=xhs.get("post_body", ""),
@@ -243,21 +259,24 @@ def _persist_copy(db, sku_id: str, result: dict) -> None:
     db.commit()
 
 
-def _render_detail_pages(db, sku_id: str, sku_dir: Path, _image_stem: str, master_paths: dict) -> None:
-    """产品级详情页：3 平台各 1 张，文件名固定 detail-template.jpg（跨变体共享）。
-    多变体时自动追加 color_comparison module。
+def _render_detail_pages(db, variant_id: str, sku_dir: Path, master_paths: dict) -> None:
+    """变体级详情页：3 平台各 1 张，写到
+    outputs/<platform>/<variant_slug>/detail-template.jpg
+    多变体时仍带 color_comparison（这是"展示其他颜色"的模块，不取消）。
     """
     from img2ec.core.detail_page import render_detail_page
     from img2ec.core.detail_template import DEFAULT_TEMPLATE
-    from img2ec.infra.fs_layout import platform_dir as platform_dir_fn
-    from img2ec.models import PlatformOutputCopy, SKU
+    from img2ec.infra.fs_layout import variant_detail_path
+    from img2ec.models import PlatformOutputCopy, Variant
 
     images = {k: Path(v) for k, v in master_paths.items()}
     if "1x1" not in images:
         return
 
-    # 收集多变体颜色对比用的数据
-    sku = db.get(SKU, sku_id)
+    variant = db.get(Variant, variant_id)
+    if variant is None:
+        return
+    sku = variant.product
     variants_meta: list[dict] = []
     if sku and len(sku.variants) > 1:
         for v in sku.variants:
@@ -269,7 +288,6 @@ def _render_detail_pages(db, sku_id: str, sku_dir: Path, _image_stem: str, maste
     template = dict(DEFAULT_TEMPLATE)
     template["modules"] = list(DEFAULT_TEMPLATE["modules"])
     if len(variants_meta) >= 2:
-        # 在 selling_points 之后插入 color_comparison
         new_mods = []
         for m in template["modules"]:
             new_mods.append(m)
@@ -277,7 +295,10 @@ def _render_detail_pages(db, sku_id: str, sku_dir: Path, _image_stem: str, maste
                 new_mods.append({"type": "color_comparison", "config": {}})
         template["modules"] = new_mods
 
-    copy_records = {c.platform: c for c in db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()}
+    copy_records = {
+        c.platform: c
+        for c in db.query(PlatformOutputCopy).filter_by(variant_id=variant_id).all()
+    }
     for platform in ("douyin", "shipinhao", "xiaohongshu"):
         copy_row = copy_records.get(platform)
         if copy_row is None:
@@ -288,7 +309,7 @@ def _render_detail_pages(db, sku_id: str, sku_dir: Path, _image_stem: str, maste
             "selling_points": copy_row.selling_points or [],
         }
         try:
-            out_path = platform_dir_fn(sku_dir, platform) / "detail-template.jpg"
+            out_path = variant_detail_path(sku_dir, variant, platform)
             render_detail_page(
                 template=template,
                 copy=copy_dict,

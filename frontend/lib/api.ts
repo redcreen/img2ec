@@ -186,13 +186,13 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
-  applyDimensionToDetail: (pid: string, sid: string, style: "white" | "template") =>
-    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/dimension/apply-to-detail`, {
+  applyDimensionToDetail: (pid: string, sid: string, vid: string, style: "white" | "template") =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/variants/${vid}/dimension/apply-to-detail`, {
       method: "POST",
       body: JSON.stringify({ style }),
     }),
-  composeDetail: (pid: string, sid: string, image_keys: string[]) =>
-    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/detail/compose`, {
+  composeDetail: (pid: string, sid: string, vid: string, image_keys: string[]) =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/variants/${vid}/detail/compose`, {
       method: "POST",
       body: JSON.stringify({ image_keys }),
     }),
@@ -214,8 +214,15 @@ export const api = {
       method: "POST", body: JSON.stringify({ count }),
     }),
 
-  listCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy`),
-  regenerateCopy: (sid: string) => req<import("./types").PlatformCopy[]>(`/api/skus/${sid}/copy/regenerate`, { method: "POST" }),
+  listCopy: (pid: string, sid: string, vid: string) =>
+    req<import("./types").PlatformCopy[]>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}/copy`,
+    ),
+  regenerateCopy: (pid: string, sid: string, vid: string) =>
+    req<import("./types").PlatformCopy[]>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}/copy/regenerate`,
+      { method: "POST" },
+    ),
 };
 
 async function _downloadZipPOST(url: string, body: any, fallbackName: string) {

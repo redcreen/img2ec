@@ -1,6 +1,6 @@
 from enum import Enum
 
-from sqlalchemy import ForeignKey, JSON, String, Text
+from sqlalchemy import ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from img2ec.models.base import Base, TimestampMixin
@@ -13,10 +13,17 @@ class Platform(str, Enum):
 
 
 class PlatformOutputCopy(Base, TimestampMixin):
+    """每个 Variant + Platform 一行。文案 + 详情页都按颜色独立维护。"""
+
     __tablename__ = "platform_output_copies"
+    __table_args__ = (
+        UniqueConstraint("variant_id", "platform", name="uq_copy_variant_platform"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    sku_id: Mapped[str] = mapped_column(ForeignKey("skus.id", ondelete="CASCADE"), nullable=False)
+    variant_id: Mapped[str] = mapped_column(
+        ForeignKey("variants.id", ondelete="CASCADE"), nullable=False,
+    )
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
     title: Mapped[str] = mapped_column(String(200), default="")
     subtitle: Mapped[str] = mapped_column(String(200), default="")
@@ -26,6 +33,6 @@ class PlatformOutputCopy(Base, TimestampMixin):
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     hashtags: Mapped[list] = mapped_column(JSON, default=list)
     video_script: Mapped[str] = mapped_column(Text, default="")
-    raw_response: Mapped[dict] = mapped_column(JSON, default=dict)  # 全量原始响应留 debug
+    raw_response: Mapped[dict] = mapped_column(JSON, default=dict)
 
-    sku = relationship("SKU")
+    variant = relationship("Variant")

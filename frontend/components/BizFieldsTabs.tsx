@@ -61,8 +61,13 @@ function ListField({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-export function BizFieldsTabs({ skuId }: { skuId: string }) {
-  const { data, mutate, isLoading } = useSWR(`copy-${skuId}`, () => api.listCopy(skuId));
+export function BizFieldsTabs({
+  pid, skuId, variantId,
+}: { pid: string; skuId: string; variantId: string }) {
+  const { data, mutate, isLoading } = useSWR(
+    `copy-${skuId}-${variantId}`,
+    () => api.listCopy(pid, skuId, variantId),
+  );
   const [active, setActive] = useState<string>("douyin");
   const [regenerating, setRegenerating] = useState(false);
 
@@ -73,7 +78,7 @@ export function BizFieldsTabs({ skuId }: { skuId: string }) {
   const onRegen = async () => {
     setRegenerating(true);
     try {
-      await api.regenerateCopy(skuId);
+      await api.regenerateCopy(pid, skuId, variantId);
       await mutate();
     } finally {
       setRegenerating(false);

@@ -332,7 +332,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{project_id}/skus/{sku_id}/detail/compose": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/detail/compose": {
         parameters: {
             query?: never;
             header?: never;
@@ -343,19 +343,19 @@ export interface paths {
         put?: never;
         /**
          * Compose Detail Page
-         * @description 用用户选定的 image_keys 顺序重渲 3 平台详情页。
+         * @description 用用户选定的 image_keys 顺序重渲该变体在 3 平台的详情页。
          *
          *     第一个 image_key 作为 hero（建议 1x1）；其余按顺序作为 full_image 或 size_diagram module。
-         *     标题/卖点段始终保留（来自 PlatformOutputCopy）。
+         *     标题/卖点段始终保留（来自该变体的 PlatformOutputCopy）。
          */
-        post: operations["compose_detail_page_api_projects__project_id__skus__sku_id__detail_compose_post"];
+        post: operations["compose_detail_page_api_projects__project_id__skus__sku_id__variants__variant_id__detail_compose_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{project_id}/skus/{sku_id}/dimension/apply-to-detail": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/dimension/apply-to-detail": {
         parameters: {
             query?: never;
             header?: never;
@@ -366,9 +366,9 @@ export interface paths {
         put?: never;
         /**
          * Apply Dimension To Detail
-         * @description 把指定 style 的尺寸图作为 module 加入详情页底部并重渲 3 平台详情页。
+         * @description 把指定 style 的尺寸图作为 module 加入该变体的详情页底部并重渲 3 平台。
          */
-        post: operations["apply_dimension_to_detail_api_projects__project_id__skus__sku_id__dimension_apply_to_detail_post"];
+        post: operations["apply_dimension_to_detail_api_projects__project_id__skus__sku_id__variants__variant_id__dimension_apply_to_detail_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -651,7 +651,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skus/{sku_id}/copy": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/copy": {
         parameters: {
             query?: never;
             header?: never;
@@ -659,7 +659,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Copy */
-        get: operations["list_copy_api_skus__sku_id__copy_get"];
+        get: operations["list_copy_api_projects__project_id__skus__sku_id__variants__variant_id__copy_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -668,7 +668,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skus/{sku_id}/copy/regenerate": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/copy/regenerate": {
         parameters: {
             query?: never;
             header?: never;
@@ -678,7 +678,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Regenerate */
-        post: operations["regenerate_api_skus__sku_id__copy_regenerate_post"];
+        post: operations["regenerate_api_projects__project_id__skus__sku_id__variants__variant_id__copy_regenerate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2161,13 +2161,14 @@ export interface operations {
             };
         };
     };
-    compose_detail_page_api_projects__project_id__skus__sku_id__detail_compose_post: {
+    compose_detail_page_api_projects__project_id__skus__sku_id__variants__variant_id__detail_compose_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: string;
                 sku_id: string;
+                variant_id: string;
             };
             cookie?: never;
         };
@@ -2197,13 +2198,14 @@ export interface operations {
             };
         };
     };
-    apply_dimension_to_detail_api_projects__project_id__skus__sku_id__dimension_apply_to_detail_post: {
+    apply_dimension_to_detail_api_projects__project_id__skus__sku_id__variants__variant_id__dimension_apply_to_detail_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: string;
                 sku_id: string;
+                variant_id: string;
             };
             cookie?: never;
         };
@@ -2763,12 +2765,14 @@ export interface operations {
             };
         };
     };
-    list_copy_api_skus__sku_id__copy_get: {
+    list_copy_api_projects__project_id__skus__sku_id__variants__variant_id__copy_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                project_id: string;
                 sku_id: string;
+                variant_id: string;
             };
             cookie?: never;
         };
@@ -2794,12 +2798,14 @@ export interface operations {
             };
         };
     };
-    regenerate_api_skus__sku_id__copy_regenerate_post: {
+    regenerate_api_projects__project_id__skus__sku_id__variants__variant_id__copy_regenerate_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
+                project_id: string;
                 sku_id: string;
+                variant_id: string;
             };
             cookie?: never;
         };

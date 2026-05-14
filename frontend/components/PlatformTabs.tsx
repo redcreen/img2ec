@@ -36,7 +36,8 @@ export function PlatformTabs({
   const cur = useCuration(skuId, variant.id);
   // copy 没就绪时（数量 < 3）每 3 秒轮询；齐了停轮询节省请求
   const { data: copyList, mutate, isLoading } = useSWR(
-    `copy-${skuId}`, () => api.listCopy(skuId),
+    `copy-${skuId}-${variant.id}`,
+    () => api.listCopy(pid, skuId, variant.id),
     {
       refreshInterval: (latest: any) =>
         latest && Array.isArray(latest) && latest.length >= 3 ? 0 : 3000,
@@ -52,7 +53,7 @@ export function PlatformTabs({
   const onRegenCopy = async () => {
     setRegenerating(true);
     try {
-      await api.regenerateCopy(skuId);
+      await api.regenerateCopy(pid, skuId, variant.id);
       await mutate();
     } catch (e: any) {
       alert("重新生成失败：" + e.message);

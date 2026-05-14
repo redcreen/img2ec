@@ -600,28 +600,30 @@ class DetailComposeRequest(BaseModel):
     image_keys: list[str]  # 顺序敏感：master ratio (1x1/long/...) 或 size_white/size_template
 
 
-@router.post("/{sku_id}/detail/compose", response_model=SKUOut, status_code=200)
+@router.post("/{sku_id}/variants/{variant_id}/detail/compose", response_model=SKUOut, status_code=200)
 def compose_detail_page(
-    project_id: str, sku_id: str,
+    project_id: str, sku_id: str, variant_id: str,
     payload: DetailComposeRequest,
     db: Session = Depends(get_session),
 ) -> dict:
-    """用用户选定的 image_keys 顺序重渲 3 平台详情页。
+    """用用户选定的 image_keys 顺序重渲该变体在 3 平台的详情页。
 
     第一个 image_key 作为 hero（建议 1x1）；其余按顺序作为 full_image 或 size_diagram module。
-    标题/卖点段始终保留（来自 PlatformOutputCopy）。
+    标题/卖点段始终保留（来自该变体的 PlatformOutputCopy）。
     """
     from img2ec.core.detail_page import render_detail_page
     from img2ec.core.detail_template import DEFAULT_TEMPLATE
-    from img2ec.infra.fs_layout import platform_dir as platform_dir_fn
-    from img2ec.models import PlatformOutputCopy
+    from img2ec.infra.fs_layout import variant_detail_path
+    from img2ec.models import PlatformOutputCopy, Variant
 
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
-    primary = sku.default_variant
-    if primary is None or not primary.images:
-        raise HTTPException(400, "no images in primary variant")
+    primary = db.get(Variant, variant_id)
+    if primary is None or primary.product_id != sku.id:
+        raise HTTPException(404, "variant not found")
+    if not primary.images:
+        raise HTTPException(400, "no images in variant")
     if not payload.image_keys:
         raise HTTPException(400, "image_keys cannot be empty")
 
@@ -701,16 +703,16 @@ def compose_detail_page(
 
     proj = sku.project
     skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
-    copies = db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()
+    copies = db.query(PlatformOutputCopy).filter_by(variant_id=primary.id).all()
     if not copies:
-        raise HTTPException(400, "no copy generated yet — wait for copy then retry")
+        raise HTTPException(400, "no copy generated yet for this variant — wait then retry")
 
     for c in copies:
         copy_dict = {
             "title": c.title, "subtitle": c.subtitle,
             "selling_points": c.selling_points or [],
         }
-        out_path = platform_dir_fn(skud, c.platform) / "detail-template.jpg"
+        out_path = variant_detail_path(skud, primary, c.platform)
         render_detail_page(
             template=template, copy=copy_dict, images=images_dict,
             output_path=out_path, variants=variants_meta,
@@ -720,36 +722,35 @@ def compose_detail_page(
     return _enrich(sku)
 
 
-@router.post("/{sku_id}/dimension/apply-to-detail", response_model=SKUOut, status_code=200)
+@router.post("/{sku_id}/variants/{variant_id}/dimension/apply-to-detail", response_model=SKUOut, status_code=200)
 def apply_dimension_to_detail(
-    project_id: str, sku_id: str,
+    project_id: str, sku_id: str, variant_id: str,
     payload: ApplyDimensionRequest | None = None,
     db: Session = Depends(get_session),
 ) -> dict:
-    """把指定 style 的尺寸图作为 module 加入详情页底部并重渲 3 平台详情页。"""
+    """把指定 style 的尺寸图作为 module 加入该变体的详情页底部并重渲 3 平台。"""
     from img2ec.core.detail_page import render_detail_page
     from img2ec.core.detail_template import DEFAULT_TEMPLATE
-    from img2ec.infra.fs_layout import platform_dir as platform_dir_fn
-    from img2ec.models import PlatformOutputCopy
+    from img2ec.infra.fs_layout import variant_detail_path
+    from img2ec.models import PlatformOutputCopy, Variant
 
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
-    if not sku.images:
-        raise HTTPException(400, "no source images")
+    primary = db.get(Variant, variant_id)
+    if primary is None or primary.product_id != sku.id:
+        raise HTTPException(404, "variant not found")
+    if not primary.images:
+        raise HTTPException(400, "no source images in variant")
 
     style = (payload.style if payload else "white") or "white"
     if style not in DIMENSION_STYLES:
         raise HTTPException(400, f"invalid style: {style}; allowed: {list(DIMENSION_STYLES)}")
 
-    chosen_path = _dimension_image_path(sku, style)
+    chosen_path = _dimension_image_path_for_variant(primary, style, 0)
     if chosen_path is None or not chosen_path.exists():
         raise HTTPException(400, f"dimension diagram for style={style} not generated yet")
 
-    # 用主变体（默认变体）的 master 拼详情页；尺寸图作为附加 module
-    primary = sku.default_variant
-    if primary is None or not primary.images:
-        raise HTTPException(400, "no images in primary variant")
     img = primary.images[0]
     master_paths = {k: Path(v) for k, v in (img.master_paths or {}).items()}
     images_dict = {**master_paths, f"size_{style}": chosen_path}
@@ -780,16 +781,16 @@ def apply_dimension_to_detail(
     proj = sku.project
     skud = sku_dir(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
 
-    copies = db.query(PlatformOutputCopy).filter_by(sku_id=sku_id).all()
+    copies = db.query(PlatformOutputCopy).filter_by(variant_id=primary.id).all()
     if not copies:
-        raise HTTPException(400, "no copy generated yet — wait until copy is ready then retry")
+        raise HTTPException(400, "no copy generated yet for this variant — wait then retry")
 
     for c in copies:
         copy_dict = {
             "title": c.title, "subtitle": c.subtitle,
             "selling_points": c.selling_points or [],
         }
-        out_path = platform_dir_fn(skud, c.platform) / "detail-template.jpg"
+        out_path = variant_detail_path(skud, primary, c.platform)
         render_detail_page(
             template=template, copy=copy_dict, images=images_dict,
             output_path=out_path, variants=variants_meta,

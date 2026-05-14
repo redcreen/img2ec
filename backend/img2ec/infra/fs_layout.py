@@ -60,6 +60,15 @@ def platform_dir(sku_d: Path, platform: str) -> Path:
     return outputs_dir(sku_d) / platform
 
 
+def variant_detail_path(sku_d: Path, variant, platform: str) -> Path:
+    """该变体在该平台的详情页输出路径。
+
+    位置：outputs/<platform>/<variant_slug>/detail-template.jpg
+
+    每个 variant 一份；不和别的颜色共享。"""
+    return platform_dir(sku_d, platform) / slug(variant.color_name) / "detail-template.jpg"
+
+
 def ensure_sku_dirs(sku_d: Path) -> None:
     """创建 SKU 下所有子目录。"""
     for sub in (source_dir, cutout_dir, master_dir, outputs_dir):

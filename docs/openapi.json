@@ -1351,14 +1351,14 @@
         }
       }
     },
-    "/api/projects/{project_id}/skus/{sku_id}/detail/compose": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/detail/compose": {
       "post": {
         "tags": [
           "skus"
         ],
         "summary": "Compose Detail Page",
-        "description": "用用户选定的 image_keys 顺序重渲 3 平台详情页。\n\n第一个 image_key 作为 hero（建议 1x1）；其余按顺序作为 full_image 或 size_diagram module。\n标题/卖点段始终保留（来自 PlatformOutputCopy）。",
-        "operationId": "compose_detail_page_api_projects__project_id__skus__sku_id__detail_compose_post",
+        "description": "用用户选定的 image_keys 顺序重渲该变体在 3 平台的详情页。\n\n第一个 image_key 作为 hero（建议 1x1）；其余按顺序作为 full_image 或 size_diagram module。\n标题/卖点段始终保留（来自该变体的 PlatformOutputCopy）。",
+        "operationId": "compose_detail_page_api_projects__project_id__skus__sku_id__variants__variant_id__detail_compose_post",
         "parameters": [
           {
             "name": "project_id",
@@ -1376,6 +1376,15 @@
             "schema": {
               "type": "string",
               "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
             }
           }
         ],
@@ -1413,14 +1422,14 @@
         }
       }
     },
-    "/api/projects/{project_id}/skus/{sku_id}/dimension/apply-to-detail": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/dimension/apply-to-detail": {
       "post": {
         "tags": [
           "skus"
         ],
         "summary": "Apply Dimension To Detail",
-        "description": "把指定 style 的尺寸图作为 module 加入详情页底部并重渲 3 平台详情页。",
-        "operationId": "apply_dimension_to_detail_api_projects__project_id__skus__sku_id__dimension_apply_to_detail_post",
+        "description": "把指定 style 的尺寸图作为 module 加入该变体的详情页底部并重渲 3 平台。",
+        "operationId": "apply_dimension_to_detail_api_projects__project_id__skus__sku_id__variants__variant_id__dimension_apply_to_detail_post",
         "parameters": [
           {
             "name": "project_id",
@@ -1438,6 +1447,15 @@
             "schema": {
               "type": "string",
               "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
             }
           }
         ],
@@ -2396,14 +2414,23 @@
         }
       }
     },
-    "/api/skus/{sku_id}/copy": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/copy": {
       "get": {
         "tags": [
           "copy"
         ],
         "summary": "List Copy",
-        "operationId": "list_copy_api_skus__sku_id__copy_get",
+        "operationId": "list_copy_api_projects__project_id__skus__sku_id__variants__variant_id__copy_get",
         "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
           {
             "name": "sku_id",
             "in": "path",
@@ -2411,6 +2438,15 @@
             "schema": {
               "type": "string",
               "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
             }
           }
         ],
@@ -2424,7 +2460,7 @@
                   "items": {
                     "$ref": "#/components/schemas/CopyOut"
                   },
-                  "title": "Response List Copy Api Skus  Sku Id  Copy Get"
+                  "title": "Response List Copy Api Projects  Project Id  Skus  Sku Id  Variants  Variant Id  Copy Get"
                 }
               }
             }
@@ -2442,14 +2478,23 @@
         }
       }
     },
-    "/api/skus/{sku_id}/copy/regenerate": {
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/copy/regenerate": {
       "post": {
         "tags": [
           "copy"
         ],
         "summary": "Regenerate",
-        "operationId": "regenerate_api_skus__sku_id__copy_regenerate_post",
+        "operationId": "regenerate_api_projects__project_id__skus__sku_id__variants__variant_id__copy_regenerate_post",
         "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
           {
             "name": "sku_id",
             "in": "path",
@@ -2457,6 +2502,15 @@
             "schema": {
               "type": "string",
               "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
             }
           }
         ],
@@ -2470,7 +2524,7 @@
                   "items": {
                     "$ref": "#/components/schemas/CopyOut"
                   },
-                  "title": "Response Regenerate Api Skus  Sku Id  Copy Regenerate Post"
+                  "title": "Response Regenerate Api Projects  Project Id  Skus  Sku Id  Variants  Variant Id  Copy Regenerate Post"
                 }
               }
             }

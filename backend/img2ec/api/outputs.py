@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from img2ec.db import get_session
-from img2ec.infra.fs_layout import outputs_dir, platform_dir, sku_dir
+from img2ec.infra.fs_layout import outputs_dir, sku_dir, variant_detail_path
 from img2ec.models import PlatformOutputCopy, Project, SKU, SKUStatus, Variant
 
 router = APIRouter(prefix="/api", tags=["outputs"])
@@ -126,7 +126,7 @@ def download_bundle(project_id: str, sku_id: str, payload: BundleRequest,
         _write_main(zf, variant, payload.main_keys, "主图", counts)
         _write_sku(zf, variant, "SKU图", counts)
         _write_detail(zf, variant, payload.detail_keys, skud, payload.platform, "详情图", counts)
-        _write_copy(zf, db, sku_id, payload.platform, "文案.txt")
+        _write_copy(zf, db, variant.id, payload.platform, "文案.txt")
 
     if sum(counts.values()) == 0:
         raise HTTPException(400, "没有可下载的内容（请先生成 master / 选择主图 / 应用详情页）")
@@ -175,15 +175,17 @@ def _write_detail(zf, variant: Variant, keys: list[str], skud: Path,
         zf.write(p, arcname=f"{folder}/detail-{n}-{_spec_for_key(variant, k)}{p.suffix}")
         n += 1
         counts["detail"] += 1
-    # 合成好的详情页
-    dp = platform_dir(skud, platform) / "detail-template.jpg"
+    # 合成好的详情页（变体级路径）
+    dp = variant_detail_path(skud, variant, platform)
     if dp.exists():
         zf.write(dp, arcname=f"{folder}/detail-template.jpg")
         counts["detail"] += 1
 
 
-def _write_copy(zf, db: Session, sku_id: str, platform: str, name: str) -> None:
-    copy_row = db.query(PlatformOutputCopy).filter_by(sku_id=sku_id, platform=platform).first()
+def _write_copy(zf, db: Session, variant_id: str, platform: str, name: str) -> None:
+    copy_row = db.query(PlatformOutputCopy).filter_by(
+        variant_id=variant_id, platform=platform,
+    ).first()
     if not copy_row:
         return
     lines = [f"标题：{copy_row.title or ''}"]
@@ -242,7 +244,7 @@ def download_bundle_all(project_id: str, sku_id: str, payload: BundleAllRequest,
         # 各平台子目录：详情图列表 + 合成详情图 + 文案
         for platform, zh in PLATFORM_LABELS.items():
             _write_detail(zf, variant, payload.detail_keys, skud, platform, f"{zh}/详情图", counts)
-            _write_copy(zf, db, sku_id, platform, f"{zh}/文案.txt")
+            _write_copy(zf, db, variant.id, platform, f"{zh}/文案.txt")
 
     if sum(counts.values()) == 0:
         raise HTTPException(400, "没有可下载的内容")

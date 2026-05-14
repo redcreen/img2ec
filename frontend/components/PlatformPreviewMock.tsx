@@ -144,9 +144,9 @@ export function PlatformPreviewMock({
     if (ks.length === 0) return;
     setComposing(true);
     try {
-      await api.composeDetail(pid, sid, ks);
-      // 详情图 URL 不变（固定路径），需要触发 copy SWR 重取以拿到带新 ?t=<mtime> 的 URL
-      globalMutate(`copy-${sid}`);
+      await api.composeDetail(pid, sid, variant.id, ks);
+      // 详情图 URL 不变（变体路径固定），触发 copy SWR 重取以拿到带新 ?t=<mtime> 的 URL
+      globalMutate(`copy-${sid}-${variant.id}`);
       onChanged();
     } catch (e: any) {
       alert("应用到详情页失败：" + e.message);

@@ -101,7 +101,7 @@ export function ImageCurationPanel({
     if (keys.length === 0) return;
     setRecomposing(true);
     try {
-      await api.composeDetail(pid, sid, keys);
+      await api.composeDetail(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
       alert("详情页重渲失败：" + e.message);
