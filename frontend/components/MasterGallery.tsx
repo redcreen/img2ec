@@ -558,6 +558,9 @@ function CurationCell({
   const displayedPath = displayed?.path;
   const versionNo = (idx: number) => versionList.length - idx;  // 0→N（最新）; N-1→1（最旧）
   const isGenerating = !url && !!isPending;
+  // 已有图但又点了生成 → 旧版本仍展示 + 顶上覆盖一层"vN+1 生成中"
+  const regenerating = !!url && !!isPending;
+  const nextVersionLabel = `v${versionList.length + 1}`;
   return (
     <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : isGenerating ? "border-amber-600/60" : "border-zinc-700"} rounded p-1.5`}>
       <div className={`aspect-square rounded mb-1 overflow-hidden relative ${accent ? "bg-white" : "bg-zinc-800"}`}>
@@ -594,6 +597,17 @@ function CurationCell({
           <span className="absolute top-0.5 left-0.5 text-[9px] bg-zinc-900/80 text-zinc-100 px-1 rounded">
             v{versionNo(safeIdx)}/{versionList.length}
           </span>
+        )}
+        {/* 已有图 + 又在生成 → 整张盖一层"vN+1 生成中" */}
+        {regenerating && (
+          <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex flex-col items-center justify-center text-amber-200 gap-1 pointer-events-none">
+            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+              <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" />
+            </svg>
+            <span className="text-[11px] font-semibold">{nextVersionLabel} 生成中…</span>
+            <span className="text-[9px] opacity-70">旧版仍在下方</span>
+          </div>
         )}
         {/* 右上角统一删除按钮：删的是当前展示的那一版 */}
         {displayedUrl && onDeleteVersion && displayedPath && (

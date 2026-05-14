@@ -94,6 +94,39 @@ test("upload reference image returns valid path", async ({ request }) => {
   expect(body.url).toMatch(/^\/static\/ai-previews\/ref-/);
 });
 
+test("undo toast appears after × delete + 撤销 cancels", async ({ request, page }) => {
+  // 找一个有 master 的 SKU
+  const projs = await (await request.get("/api/projects")).json();
+  if (!Array.isArray(projs) || projs.length === 0) test.skip(true, "no project");
+  let found: { pid: string; sid: string } | null = null;
+  outer: for (const p of projs) {
+    const skus = await (await request.get(`/api/projects/${p.id}/skus`)).json();
+    if (!Array.isArray(skus)) continue;
+    for (const s of skus) {
+      for (const v of s.variants ?? []) {
+        for (const im of v.images ?? []) {
+          if (im.master_urls && Object.keys(im.master_urls).length > 0) {
+            found = { pid: p.id, sid: s.id }; break outer;
+          }
+        }
+      }
+    }
+  }
+  if (!found) test.skip(true, "no SKU with master");
+
+  await page.goto(`/projects/${found!.pid}/skus/${found!.sid}`,
+    { waitUntil: "networkidle" });
+  await page.waitForSelector("text=MASTER 资产", { timeout: 10000 });
+  // 点第一张 master cell 的 ×
+  await page.locator('button[title*="删除"][title*="撤销"]').first().click();
+  const toast = page.locator('[role="alert"]:has-text("已删除")');
+  await expect(toast).toBeVisible({ timeout: 2000 });
+  await expect(toast.locator('text=/\\d+ 秒内可撤销/')).toBeVisible();
+  // 撤销，避免真删
+  await toast.locator('button:has-text("撤销")').click();
+  await expect(toast).not.toBeVisible({ timeout: 2000 });
+});
+
 test("preview-prompt switches between modes", async ({ request }) => {
   // 找一个有 sku 的项目；没有就 skip
   const projs = await (await request.get("/api/projects")).json();

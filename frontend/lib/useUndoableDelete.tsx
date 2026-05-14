@@ -126,21 +126,40 @@ function UndoToast({
   const remainMs = Math.max(0, last.expiresAt - now);
   const remain = Math.ceil(remainMs / 1000);
   const extra = pending.length - 1;
+  const totalMs = 10_000;
+  const pct = Math.max(0, Math.min(100, (remainMs / totalMs) * 100));
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg pl-3 pr-2 py-2 flex items-center gap-3 text-sm min-w-[300px]">
-      <span className="text-red-400">🗑</span>
+    <div
+      key={last.id}
+      role="alert"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-zinc-900 border-2 border-red-500/70 rounded-xl shadow-2xl shadow-red-900/40 px-4 py-3 flex items-center gap-3 text-sm min-w-[420px] max-w-[90vw] animate-[undo-pop_0.18s_ease-out]"
+    >
+      <span className="text-2xl">🗑</span>
       <div className="flex-1 min-w-0">
-        <div className="truncate text-xs">已删除 {last.label}</div>
-        {extra > 0 && (
-          <div className="text-[10px] opacity-50">还有 {extra} 张排队删除</div>
-        )}
+        <div className="text-sm font-semibold truncate">已删除 {last.label}</div>
+        <div className="text-[11px] opacity-70">
+          {remain} 秒内可撤销
+          {extra > 0 && <span className="opacity-70"> · 队列还有 {extra} 项</span>}
+        </div>
+        {/* 倒计时进度条 */}
+        <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
+          <div
+            className="h-full bg-red-500 transition-[width] duration-200 ease-linear"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
-      <span className="text-[10px] opacity-60 w-7 tabular-nums text-right">{remain}s</span>
       <button
         onClick={() => cancel(last.id)}
-        className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white"
-      >撤销</button>
+        className="text-sm px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold whitespace-nowrap"
+      >↶ 撤销</button>
+      <style jsx>{`
+        @keyframes undo-pop {
+          from { opacity: 0; transform: translate(-50%, 20px); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
     </div>
   );
 }
