@@ -31,6 +31,7 @@ export interface AIPreview {
   name: string;
   desc: string;
   prompt: string;
+  prompt_zh: string;
   negative_prompt: string;
   festival: string;
   cover_path: string;

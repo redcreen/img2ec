@@ -2645,6 +2645,11 @@
             "type": "string",
             "title": "Prompt"
           },
+          "prompt_zh": {
+            "type": "string",
+            "title": "Prompt Zh",
+            "default": ""
+          },
           "negative_prompt": {
             "type": "string",
             "title": "Negative Prompt"

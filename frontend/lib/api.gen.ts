@@ -732,6 +732,11 @@ export interface components {
             desc: string;
             /** Prompt */
             prompt: string;
+            /**
+             * Prompt Zh
+             * @default
+             */
+            prompt_zh: string;
             /** Negative Prompt */
             negative_prompt: string;
             /** Festival */

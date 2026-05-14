@@ -138,6 +138,12 @@ export function Preview({
           <div className="text-[10px] opacity-50">节庆: {preview.festival}</div>
         </div>
       </div>
+      {preview.prompt_zh && (
+        <details className="text-[11px] mb-2 bg-zinc-950 border border-zinc-700 rounded p-2 max-h-40 overflow-y-auto" open>
+          <summary className="cursor-pointer opacity-70 mb-1">中文提示词</summary>
+          <p className="whitespace-pre-wrap opacity-90 mt-1 leading-relaxed">{preview.prompt_zh}</p>
+        </details>
+      )}
       <details className="text-[11px] mb-3 bg-zinc-950 border border-zinc-700 rounded p-2 max-h-32 overflow-y-auto">
         <summary className="cursor-pointer opacity-70 mb-1">完整英文 prompt</summary>
         <pre className="whitespace-pre-wrap font-mono opacity-80 mt-1">{preview.prompt}</pre>

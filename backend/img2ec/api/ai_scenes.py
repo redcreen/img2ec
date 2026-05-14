@@ -40,6 +40,7 @@ class AIPreview(BaseModel):
     name: str
     desc: str
     prompt: str          # 英文 — 给 Codex 用的
+    prompt_zh: str = ""  # 中文版（人读用，不喂模型）
     negative_prompt: str
     festival: str
     cover_path: str      # 服务端临时文件路径（前端创建模板时回传）
@@ -210,6 +211,8 @@ Output ONLY valid JSON (no markdown fences) with keys:
   "name":            Chinese short title (≤14 chars, e.g. "端午·艾草·窗光")
   "desc":            Chinese one-line description (≤40 chars, what kind of product fits)
   "prompt":          English scene-only prompt (1 long sentence, ≥80 words, ≤200)
+  "prompt_zh":       Chinese natural translation of "prompt" (供人阅读；与英文版语义一致；
+                     一段中文，不要列表，不带 markdown；≥120 字，≤280 字)
   "negative_prompt": English negative prompt (cluttered, watermark, etc.)
   "festival":        one of: 通用 / 春节 / 元宵 / 端午 / 七夕 / 中秋 / 重阳 / 腊八
 """
@@ -238,6 +241,8 @@ Output ONLY valid JSON (no markdown fences) with keys:
   "name":            Chinese short title (≤14 chars, describe scene + lighting)
   "desc":            Chinese one-line description (≤40 chars, what kind of product fits)
   "prompt":          English scene-only prompt (1 long sentence, ≥100 words, ≤220)
+  "prompt_zh":       Chinese natural translation of "prompt" (供人阅读；与英文版语义一致；
+                     一段中文，不要列表，不带 markdown；≥140 字，≤300 字)
   "negative_prompt": English negative prompt
   "festival":        one of: 通用 / 春节 / 元宵 / 端午 / 七夕 / 中秋 / 重阳 / 腊八
 """
@@ -274,6 +279,7 @@ def expand_from_keywords(
     name = (parsed.get("name") or "").strip()[:60]
     desc = (parsed.get("desc") or "").strip()[:200]
     eng_prompt = (parsed.get("prompt") or "").strip()
+    zh_prompt = (parsed.get("prompt_zh") or "").strip()
     neg = (parsed.get("negative_prompt") or "").strip()
     fest_out = _validate_festival(parsed.get("festival") or festival)
     if not (name and eng_prompt):
@@ -290,6 +296,7 @@ def expand_from_keywords(
         "name": name,
         "desc": desc,
         "prompt": eng_prompt,
+        "prompt_zh": zh_prompt,
         "negative_prompt": neg,
         "festival": fest_out,
         "cover_path": str(cover_path),
@@ -459,6 +466,7 @@ def expand_from_reference(
     name = (parsed.get("name") or "").strip()[:60]
     desc = (parsed.get("desc") or "").strip()[:200]
     eng_prompt = (parsed.get("prompt") or "").strip()
+    zh_prompt = (parsed.get("prompt_zh") or "").strip()
     neg = (parsed.get("negative_prompt") or "").strip()
     fest_out = _validate_festival(parsed.get("festival") or festival)
     if not (name and eng_prompt):
@@ -475,6 +483,7 @@ def expand_from_reference(
         "name": name,
         "desc": desc,
         "prompt": eng_prompt,
+        "prompt_zh": zh_prompt,
         "negative_prompt": neg,
         "festival": fest_out,
         "cover_path": str(cover_path),
