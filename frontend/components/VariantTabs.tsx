@@ -26,7 +26,8 @@ export function VariantTabs({
       const v = await api.createVariant(pid, sid, name);
       setNewName("");
       setCreating(false);
-      onChanged();
+      // 等 SWR mutate 拿到新 variants 再切活动 id（否则 page useEffect 会把 active 重置回旧 default）
+      await onChanged();
       onSelect(v.id);
     } catch (e: any) {
       alert("创建失败：" + e.message);

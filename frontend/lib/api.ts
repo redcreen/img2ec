@@ -127,7 +127,7 @@ export const api = {
   processSku: (
     pid: string, sid: string,
     ratios?: string[], variantId?: string,
-    extra?: { prompt: string; weight: number },
+    extra?: { prompt: string; weight: number; negative?: string; disableScene?: boolean },
     imageIds?: string[],
   ) => {
     const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
@@ -137,6 +137,10 @@ export const api = {
       body.extra_prompt = extra.prompt;
       body.extra_weight = extra.weight;
     }
+    if (extra && extra.negative && extra.negative.trim()) {
+      body.extra_negative_prompt = extra.negative;
+    }
+    if (extra && extra.disableScene) body.disable_scene = true;
     if (imageIds && imageIds.length > 0) body.image_ids = imageIds;
     return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
@@ -148,17 +152,23 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  patchSku: (pid: string, sid: string, body: { scene_id?: string | null }) =>
+  patchSku: (pid: string, sid: string, body: { scene_id?: string | null; clear_scene?: boolean; name?: string }) =>
     req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  previewPrompt: (pid: string, sid: string, extraPrompt = "", extraWeight = 0) => {
+  previewPrompt: (
+    pid: string, sid: string,
+    extraPrompt = "", extraWeight = 0,
+    extraNegativePrompt = "", disableScene = false,
+  ) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {
       qs.set("extra_prompt", extraPrompt);
       qs.set("extra_weight", String(extraWeight));
     }
+    if (extraNegativePrompt) qs.set("extra_negative_prompt", extraNegativePrompt);
+    if (disableScene) qs.set("disable_scene", "true");
     const url = `/api/projects/${pid}/skus/${sid}/preview-prompt${qs.toString() ? "?" + qs.toString() : ""}`;
     return req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(url);
   },

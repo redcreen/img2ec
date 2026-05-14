@@ -24,6 +24,9 @@ def process_image_task(
     ratios: list[str] | None = None,
     extra_prompt: str = "",
     extra_weight: float = 0.0,
+    extra_negative_prompt: str = "",
+    overwrite: bool = False,
+    disable_scene: bool = False,
 ) -> str:
     settings = get_settings()
     db = SessionLocal()
@@ -35,12 +38,12 @@ def process_image_task(
 
         sku = db.get(SKU, img.sku_id)
         project: Project = db.get(Project, sku.project_id)
-        # 优先用 image 自己的 scene_id；fallback 到 SKU 默认
-        effective_scene_id = img.scene_id or sku.scene_id
+        # 优先用 image 自己的 scene_id；fallback 到 SKU 默认；disable_scene=true 时强制忽略
+        effective_scene_id = None if disable_scene else (img.scene_id or sku.scene_id)
         scene: Scene | None = db.get(Scene, effective_scene_id) if effective_scene_id else None
-        if scene is None:
+        if scene is None and not (extra_prompt or "").strip():
             img.status = ImageStatus.FAILED.value
-            img.err_msg = "no scene assigned (image-level or sku-level)"
+            img.err_msg = "no scene and no extra_prompt — at least one required"
             db.commit()
             return "no_scene"
 
@@ -96,9 +99,9 @@ def process_image_task(
                 src_path=Path(img.src_path),
                 sku_dir=skud,
                 image_stem=Path(img.name).stem,
-                scene_prompt=scene.prompt,
-                scene_neg=scene.negative_prompt,
-                ip_weight=scene.ip_adapter_weight,
+                scene_prompt=scene.prompt if scene else "",
+                scene_neg=scene.negative_prompt if scene else "",
+                ip_weight=scene.ip_adapter_weight if scene else 60,
                 seed=random.randint(1, 2**31 - 1),
                 comfy_client=client,
                 workflows_dir=WORKFLOWS_DIR,
@@ -106,6 +109,8 @@ def process_image_task(
                 on_master_done=on_master_done,
                 ratios=ratios,
                 extra_prompt=extra_prompt,
+                extra_negative_prompt=extra_negative_prompt,
+                overwrite=overwrite,
                 extra_weight=extra_weight,
             )
             # 派生：合并新生成的 paths 到已有的（partial generation 累加）

@@ -235,6 +235,7 @@ def generate_master_from_input(
     codex_bin: str = "codex",
     extra_prompt: str = "",
     extra_weight: float = 0.0,
+    extra_negative_prompt: str = "",
 ) -> Path:
     """Path C — Codex 直接 image-to-image：商品 + 场景一步出图。
 
@@ -254,6 +255,7 @@ def generate_master_from_input(
     full_prompt = build_master_prompt(
         scene_prompt=scene_prompt, ratio_key=ratio_key,
         extra_prompt=extra_prompt, extra_weight=extra_weight,
+        extra_negative_prompt=extra_negative_prompt,
     )
     return _run_codex_to_image(
         full_prompt=full_prompt,
@@ -356,18 +358,19 @@ def build_master_prompt(
     ratio_key: str,
     extra_prompt: str = "",
     extra_weight: float = 0.0,
+    extra_negative_prompt: str = "",
 ) -> str:
-    """组装传给 Codex 的完整 prompt（前端 preview 用同一个函数）。
+    """组装传给 Codex 的完整 prompt。
 
-    - ratio_key ∈ {1x1, long, 3x4, 9x16, 16x9}: 把商品放进 scene_prompt 描述的场景里
-    - ratio_key ∈ {front, side, detail}: 白底特写，忽略 scene_prompt
-    - extra_prompt / extra_weight: 用户附加诉求，权重 0..1 控制强调程度
+    - scene_prompt 为空 → 纯人工模式，extra_prompt 当场景描述用
+    - extra_prompt / extra_weight：附加诉求 + 权重
+    - extra_negative_prompt：用户排除项
     """
     size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
     suffix = _format_extra(extra_prompt, extra_weight)
+    neg_suffix = _format_negative(extra_negative_prompt)
 
     if ratio_key in CLOSEUP_KEYS:
-        # 特写图改为 PIL 局部裁剪 + 放大，不走 Codex。这里只保留一个说明性文本给 preview 用。
         descriptions = {
             "front": "中央 70% 方形区裁剪放大（正面）",
             "side":  "中央偏右 60% 方形区裁剪放大（侧面）",
@@ -379,10 +382,27 @@ def build_master_prompt(
             f"输出尺寸：{size_hint} JPEG。"
         )
 
+    scene_clean = (scene_prompt or "").strip()
+    if not scene_clean:
+        # 纯人工模式：没有 scene 模板，完全依赖 extra_prompt 描述场景
+        base = (
+            f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
+            f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene "
+            f"defined entirely by the additional user instruction below. "
+            f"\n\nCritical rules: "
+            f"(1) the product itself must remain visually identical to the input — same shape, "
+            f"same colors, same patterns, same orientation, same materials; "
+            f"(2) ONLY the surrounding scene/background changes; "
+            f"(3) natural lighting and shadow consistent with the user-described scene; "
+            f"(4) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
+            f"(5) output a single high-resolution {size_hint} photograph."
+        )
+        return base + suffix + neg_suffix
+
     base = (
         f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
         f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
-        f"\n\nScene: {scene_prompt}\n\n"
+        f"\n\nScene: {scene_clean}\n\n"
         f"Critical rules: "
         f"(1) the product itself must remain visually identical to the input — same shape, "
         f"same colors, same patterns, same orientation, same materials; "
@@ -393,7 +413,14 @@ def build_master_prompt(
         f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
         f"(6) output a single high-resolution {size_hint} photograph."
     )
-    return base + suffix
+    return base + suffix + neg_suffix
+
+
+def _format_negative(extra_negative_prompt: str) -> str:
+    txt = (extra_negative_prompt or "").strip()
+    if not txt:
+        return ""
+    return f"\n\nAdditional negative constraints (must NOT appear): {txt}"
 
 
 def _format_extra(extra_prompt: str, weight: float) -> str:

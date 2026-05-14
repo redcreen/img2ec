@@ -290,7 +290,9 @@ def delete_image(project_id: str, sku_id: str, image_id: str, db: Session = Depe
 
 
 class SkuPatchRequest(BaseModel):
-    scene_id: str | None = None  # 改 SKU 默认模板
+    scene_id: str | None = None           # 传 string → 切换；不传 → 不改
+    clear_scene: bool = False             # true → 把 scene_id 显式置 null（"不选任何模板"）
+    name: str | None = None               # 改 SKU 名（同项目唯一；会重命名磁盘目录）
 
 
 @router.patch("/{sku_id}", response_model=SKUOut)
@@ -299,16 +301,61 @@ def patch_sku(
     payload: SkuPatchRequest,
     db: Session = Depends(get_session),
 ) -> dict:
-    """更新 SKU 字段（目前只支持 scene_id）。"""
+    """更新 SKU 字段：name / scene_id / clear_scene。"""
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
-    if payload.scene_id is not None:
+
+    # 1) 改名 + 重命名磁盘目录 + DB 路径同步
+    if payload.name is not None:
+        new_name = payload.name.strip()
+        if not new_name:
+            raise HTTPException(400, "SKU 名称不能为空")
+        if new_name != sku.name:
+            existing = db.query(SKU).filter_by(project_id=project_id, name=new_name).first()
+            if existing and existing.id != sku.id:
+                raise HTTPException(409, f"项目内已存在同名 SKU「{new_name}」")
+            proj = sku.project
+            if proj:
+                from img2ec.infra.fs_layout import slug as fs_slug
+                root = Path(proj.root_path).parent
+                old_dir = root / fs_slug(proj.name) / f"{fs_slug(sku.name)}-{sku.id[:8]}"
+                new_dir = root / fs_slug(proj.name) / f"{fs_slug(new_name)}-{sku.id[:8]}"
+                if old_dir.exists() and not new_dir.exists():
+                    old_dir.rename(new_dir)
+                old_str, new_str = str(old_dir), str(new_dir)
+
+                def fix(s: str | None) -> str | None:
+                    if not s: return s
+                    if s.startswith(old_str + "/"): return new_str + s[len(old_str):]
+                    if s == old_str: return new_str
+                    return s
+
+                for v in sku.variants:
+                    if v.sku_thumb_path:
+                        v.sku_thumb_path = fix(v.sku_thumb_path)
+                    if v.sku_thumb_paths:
+                        v.sku_thumb_paths = [fix(p) for p in v.sku_thumb_paths]
+                    for im in v.images:
+                        im.src_path = fix(im.src_path) or im.src_path
+                        if im.master_paths:
+                            im.master_paths = {k: fix(v) for k, v in im.master_paths.items()}
+                        if im.master_history:
+                            im.master_history = {k: [fix(p) for p in lst] for k, lst in im.master_history.items()}
+                        if im.derived_paths:
+                            im.derived_paths = {k: fix(v) for k, v in im.derived_paths.items()}
+            sku.name = new_name
+
+    # 2) 模板：scene_id 改 OR 显式清除
+    if payload.clear_scene:
+        sku.scene_id = None
+    elif payload.scene_id is not None:
         from img2ec.models import Scene
         sc = db.get(Scene, payload.scene_id)
         if sc is None or sc.project_id != project_id:
             raise HTTPException(404, "scene not found in this project")
         sku.scene_id = payload.scene_id
+
     db.commit()
     db.refresh(sku)
     return _enrich(sku)
@@ -351,10 +398,13 @@ def preview_prompt(
     project_id: str, sku_id: str,
     extra_prompt: str = "",
     extra_weight: float = 0.0,
+    extra_negative_prompt: str = "",
+    disable_scene: bool = False,
     db: Session = Depends(get_session),
 ) -> dict:
     """返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。
-    若提供 extra_prompt + extra_weight，附加到结果里以便所见即所得。"""
+    disable_scene=true → 模拟"启用模板"关闭：preview 与实际 codex 提交完全一致。
+    """
     from img2ec.infra.codex_image import build_master_prompt
     from img2ec.models import Scene
 
@@ -362,17 +412,18 @@ def preview_prompt(
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
     scene = db.get(Scene, sku.scene_id) if sku.scene_id else None
-    if scene is None:
-        raise HTTPException(400, "no scene assigned")
-
+    # disable_scene 或无 scene → 全部 scene 信息清空，纯人工 prompt 模式
+    effective_scene = scene if not disable_scene else None
+    sp = effective_scene.prompt if effective_scene else ""
     return {
-        "scene_name": scene.name,
-        "scene_prompt": scene.prompt,
-        "negative_prompt": scene.negative_prompt,
+        "scene_name": effective_scene.name if effective_scene else "",
+        "scene_prompt": sp,
+        "negative_prompt": effective_scene.negative_prompt if effective_scene else "",
         "per_ratio": {
             r: build_master_prompt(
-                scene_prompt=scene.prompt, ratio_key=r,
+                scene_prompt=sp, ratio_key=r,
                 extra_prompt=extra_prompt, extra_weight=extra_weight,
+                extra_negative_prompt=extra_negative_prompt,
             )
             for r in ORDERED_RATIOS
         },
@@ -382,8 +433,11 @@ def preview_prompt(
 class ProcessRequest(BaseModel):
     ratios: list[str] | None = None  # None=全部 5 个；指定 ⊂ {"1x1","long","3x4","9x16","16x9"}
     extra_prompt: str = ""
+    extra_negative_prompt: str = ""  # 用户人工负面提示词；不持久化，仅本次生成
     extra_weight: float = 0.0
     image_ids: list[str] | None = None  # 仅处理这些 image；None = 整个 variant 的所有图
+    overwrite: bool = False           # true → 覆盖原版本（不开 v2/v3）
+    disable_scene: bool = False       # true → 本次生成不用 SKU 模板（不动 DB）
 
 
 @router.post("/{sku_id}/process", status_code=202)
@@ -401,15 +455,19 @@ def process_sku(
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
-    # 每张图独立 scene_id；如果某张图自己没有也没 SKU 默认 → 报错
-    if sku.scene_id is None:
-        any_img_has_scene = any(im.scene_id for v in sku.variants for im in v.images)
-        if not any_img_has_scene:
-            raise HTTPException(400, "no scene assigned (sku level or per-image)")
-
     ratios = payload.ratios if payload else None
     extra_prompt = (payload.extra_prompt if payload else "") or ""
+    extra_negative_prompt = (payload.extra_negative_prompt if payload else "") or ""
     extra_weight = float(payload.extra_weight if payload else 0.0)
+    disable_scene = bool(payload.disable_scene if payload else False)
+    # 关闭模板 OR SKU 没模板 → 必须有 extra_prompt 兜底
+    effective_no_scene = disable_scene or sku.scene_id is None
+    if effective_no_scene and not extra_prompt.strip():
+        any_img_has_scene = (not disable_scene) and any(
+            im.scene_id for v in sku.variants for im in v.images
+        )
+        if not any_img_has_scene:
+            raise HTTPException(400, "未启用模板且未填提示词；至少二选一")
     image_ids_filter = (payload.image_ids if payload else None) or None
     if ratios is not None:
         if not ratios:
@@ -455,7 +513,7 @@ def process_sku(
     from img2ec.tasks.pipeline_tasks import process_image_task
     for iid in image_ids:
         state_store.pending_ratios_add(iid, wanted)
-        process_image_task.delay(iid, wanted, extra_prompt, extra_weight)
+        process_image_task.delay(iid, wanted, extra_prompt, extra_weight, extra_negative_prompt, overwrite, disable_scene)
 
     return {"queued": len(image_ids), "ratios": wanted}
 
@@ -755,6 +813,7 @@ def update_dimensions(
 class RegenerateImageRequest(BaseModel):
     ratios: list[str] | None = None  # None=全 8 比例
     extra_prompt: str = ""
+    extra_negative_prompt: str = ""
     extra_weight: float = 0.0
 
 
@@ -773,8 +832,13 @@ def regenerate_single_image(
     img = db.get(SourceImage, image_id)
     if img is None:
         raise HTTPException(404, "image not found")
-    if sku.scene_id is None:
-        raise HTTPException(400, "no scene assigned")
+
+    extra_prompt = (payload.extra_prompt if payload else "") or ""
+    extra_negative_prompt = (payload.extra_negative_prompt if payload else "") or ""
+    extra_weight = float(payload.extra_weight if payload else 0.0)
+    effective_scene_id = img.scene_id or sku.scene_id
+    if effective_scene_id is None and not extra_prompt.strip():
+        raise HTTPException(400, "未选模板且未填提示词；至少二选一")
 
     ratios = (payload.ratios if payload else None) or sorted(VALID_RATIOS)
     invalid = set(ratios) - VALID_RATIOS
@@ -782,7 +846,6 @@ def regenerate_single_image(
         raise HTTPException(400, f"invalid ratios: {sorted(invalid)}")
 
     # 不再 skip in-flight：直接 enqueue。Celery worker pool 自动调度（concurrency 个并发）。
-    # 状态：如果当前已经在跑就不动 status；否则置为 pending（让 UI 显示排队）
     IN_FLIGHT = {ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
                  ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value}
     if img.status not in IN_FLIGHT:
@@ -791,14 +854,10 @@ def regenerate_single_image(
     sku.status = SKUStatus.RUNNING.value
     db.commit()
 
-    # Redis 增量记录本次新入队的 ratio（让前端 only-this-cell-pending 仍然准确）
     from img2ec.infra import state_store
     state_store.pending_ratios_add(image_id, sorted(ratios))
-
     from img2ec.tasks.pipeline_tasks import process_image_task
-    extra_prompt = (payload.extra_prompt if payload else "") or ""
-    extra_weight = float(payload.extra_weight if payload else 0.0)
-    process_image_task.delay(image_id, sorted(ratios), extra_prompt, extra_weight)
+    process_image_task.delay(image_id, sorted(ratios), extra_prompt, extra_weight, extra_negative_prompt)
     return {"queued": 1, "image_id": image_id, "ratios": sorted(ratios)}
 
 

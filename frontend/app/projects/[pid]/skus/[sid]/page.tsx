@@ -29,7 +29,11 @@ export default function SkuDetailPage() {
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [extraPrompt, setExtraPrompt] = useState("");
+  const [extraNegativePrompt, setExtraNegativePrompt] = useState("");
   const [extraWeight, setExtraWeight] = useState(0.5);
+  const [useTemplate, setUseTemplate] = useState(true);  // 本次生成是否用模板（local UI state，不持久化）
+  const [renamingSku, setRenamingSku] = useState(false);
+  const [skuNameDraft, setSkuNameDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
   const [selectedImgIds, setSelectedImgIds] = useState<Set<string>>(new Set());
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,8 +71,14 @@ export default function SkuDetailPage() {
           height_cm: args.dims.height,
         });
       }
-      const extra = extraPrompt.trim()
-        ? { prompt: extraPrompt.trim(), weight: extraWeight }
+      const hasExtra = extraPrompt.trim() || extraNegativePrompt.trim() || !useTemplate;
+      const extra = hasExtra
+        ? {
+            prompt: extraPrompt.trim(),
+            weight: extraWeight,
+            negative: extraNegativePrompt.trim(),
+            disableScene: !useTemplate,
+          }
         : undefined;
       if (args.ratios.length > 0) {
         const imageIds = selectedImgIds.size > 0 ? Array.from(selectedImgIds) : undefined;
@@ -142,12 +152,15 @@ export default function SkuDetailPage() {
   const dimStates: Record<string, { status: string }> = activeVariant?.dimension_states ?? {};
   const anyImgRunning = variantImages.some(i => ["pending", "cutting", "generating", "composing"].includes(i.status));
   const anyImgFailed = variantImages.some(i => i.status === "failed");
-  // 后端用 "generating" 表示 dim 在跑（不是 "running"）
   const anyDimRunning = Object.values(dimStates).some(s => s.status === "generating");
   const dimRunningKeys = Object.entries(dimStates)
     .filter(([, s]) => s.status === "generating")
     .map(([k]) => k);
   const anyDimError = Object.values(dimStates).some(s => s.status === "error");
+  // 本批待生成 = 所有 image pending_ratios 数总和（每个 ratio 算 1 张）
+  const pendingTaskCount =
+    variantImages.reduce((s, i) => s + (i.pending_ratios?.length || 0), 0)
+    + dimRunningKeys.length;
   const isBusy = submitting || sku.status === "running" || anyImgRunning || anyDimRunning;
   const liveStatus: { running: boolean; text: string; tone: "running" | "done" | "failed" | "idle" } =
     submitting && !anyImgRunning && !anyDimRunning
@@ -156,9 +169,8 @@ export default function SkuDetailPage() {
       ? {
           running: true,
           tone: "running",
-          text: anyImgRunning && currentImg
-            ? `生成中 · 原图 ${currentImgIdx + 1}/${totalImages} · ${STAGE_LABEL[currentImg.status] || currentImg.status} ${currentImg.progress || 0}%`
-            : anyDimRunning ? `尺寸图生成中 · ${dimRunningKeys.join(", ")}`
+          text: pendingTaskCount > 0
+            ? `生成中 · 剩 ${pendingTaskCount} 张${currentImg && anyImgRunning ? ` · 当前 ${currentImg.name} · ${STAGE_LABEL[currentImg.status] || currentImg.status} ${currentImg.progress || 0}%` : ""}`
             : "处理中…",
         }
       : anyImgFailed || anyDimError
@@ -183,7 +195,45 @@ export default function SkuDetailPage() {
       {/* Top header */}
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
         <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <strong className="text-base">{sku.name}</strong>
+          {renamingSku ? (
+            <form
+              className="flex items-center gap-1.5"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const next = skuNameDraft.trim();
+                if (!next || next === sku.name) { setRenamingSku(false); return; }
+                try {
+                  const updated = await api.patchSku(pid, sid, { name: next });
+                  await mutate(updated, { revalidate: true });
+                  setRenamingSku(false);
+                } catch (err: any) { alert(err.message || "改名失败"); }
+              }}
+            >
+              <input
+                value={skuNameDraft}
+                onChange={(e) => setSkuNameDraft(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Escape") setRenamingSku(false); }}
+                className="px-2 py-0.5 text-base font-bold bg-zinc-950 border border-blue-500 rounded outline-none"
+              />
+              <button type="submit" className="text-[10px] px-2 py-1 bg-blue-600 rounded">保存</button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()} /* 防 input 失焦先于 click */
+                onClick={() => setRenamingSku(false)}
+                className="text-[10px] px-2 py-1 bg-zinc-700 rounded"
+              >取消</button>
+            </form>
+          ) : (
+            <strong
+              className="text-base cursor-pointer hover:bg-zinc-800 px-1 rounded inline-flex items-center gap-1"
+              title="点击改名"
+              onClick={() => { setSkuNameDraft(sku.name); setRenamingSku(true); }}
+            >
+              {sku.name}
+              <span className="opacity-40 text-[10px]">✏️</span>
+            </strong>
+          )}
           <StatusPill status={sku.status} />
           {scene && (
             <span className="text-[11px] opacity-60">
@@ -334,8 +384,12 @@ export default function SkuDetailPage() {
                 pid={pid} sid={sid} scene={scene}
                 extraPrompt={extraPrompt}
                 extraWeight={extraWeight}
+                extraNegativePrompt={extraNegativePrompt}
+                useTemplate={useTemplate}
+                onUseTemplateChange={setUseTemplate}
                 onExtraPromptChange={setExtraPrompt}
                 onExtraWeightChange={setExtraWeight}
+                onExtraNegativePromptChange={setExtraNegativePrompt}
                 onSceneChanged={() => mutate()}
               />
             </div>

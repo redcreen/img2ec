@@ -493,20 +493,24 @@ function CurationCell({
 }) {
   const inMain = cur.isInMain(imageKey);
   const inDetail = cur.isInDetail(imageKey);
-  // primary (versions[0]) 和 url 一致时用 url；versions 缺失则纯老逻辑
+  // versions 顺序：[0]=最新；UI 番号：v1=最旧，v{N}=最新
   const versionList = versions && versions.length > 0 ? versions : (url ? [{ path: "", url }] : []);
-  const primaryPath = versionList[0]?.path;
-  // "生成中" 判断：本格 ratio 在 pending_ratios 集合里（精确 per-ratio），而不再用整张图 status
+  const [activeIdx, setActiveIdx] = useState(0);
+  const safeIdx = Math.min(activeIdx, Math.max(0, versionList.length - 1));
+  const displayed = versionList[safeIdx];
+  const displayedUrl = displayed?.url ?? url;
+  const displayedPath = displayed?.path;
+  const versionNo = (idx: number) => versionList.length - idx;  // 0→N（最新）; N-1→1（最旧）
   const isGenerating = !url && !!isPending;
   return (
     <div className={`bg-zinc-900 border ${accent ? "border-indigo-700" : isGenerating ? "border-amber-600/60" : "border-zinc-700"} rounded p-1.5`}>
       <div className={`aspect-square rounded mb-1 overflow-hidden relative ${accent ? "bg-white" : "bg-zinc-800"}`}>
-        {url ? (
+        {displayedUrl ? (
           <RatedImage
-            src={url}
+            src={displayedUrl}
             alt={label}
             className="w-full h-full object-contain"
-            onClick={() => onZoom(url, label)}
+            onClick={() => onZoom(displayedUrl, label)}
           />
         ) : isGenerating ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-xs text-amber-200/90 gap-1">
@@ -530,43 +534,60 @@ function CurationCell({
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xs opacity-40">{label}</div>
         )}
-        {url && versionList.length > 1 && (
+        {displayedUrl && versionList.length > 1 && (
           <span className="absolute top-0.5 left-0.5 text-[9px] bg-zinc-900/80 text-zinc-100 px-1 rounded">
-            v{versionList.length}/{versionList.length}
+            v{versionNo(safeIdx)}/{versionList.length}
           </span>
         )}
-        {url && onDeleteVersion && primaryPath && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDeleteVersion(primaryPath); }}
-            disabled={deletingPath === primaryPath}
-            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[10px] leading-none disabled:opacity-50"
-            title={versionList.length > 1 ? "删除当前版本（下一个版本自动升主）" : "删除该规格图"}
-          >×</button>
-        )}
       </div>
-      {/* 历史版本条（除 primary 之外的旧版） */}
+      {/* 版本标签卡：v1 / v2 / v3 ... 点击切换显示，× 删除该版本 */}
       {versionList.length > 1 && (
-        <div className="flex gap-0.5 mb-1 overflow-x-auto pb-0.5">
-          {versionList.slice(1).map((v, i) => (
-            <div key={v.path} className="relative flex-shrink-0">
-              <img
-                src={v.url}
-                alt=""
-                className="w-8 h-8 object-cover rounded border border-zinc-700 cursor-zoom-in opacity-80"
-                onClick={() => onZoom(v.url, `${label} v${versionList.length - 1 - i}`)}
-                title={`旧版本 v${versionList.length - 1 - i}`}
-              />
-              {onDeleteVersion && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteVersion(v.path); }}
-                  disabled={deletingPath === v.path}
-                  className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[8px] leading-none disabled:opacity-50"
-                  title="删除该旧版本"
-                >×</button>
-              )}
-            </div>
-          ))}
+        <div className="flex gap-1 mb-1 flex-wrap">
+          {versionList.map((v, i) => {
+            const isActive = i === safeIdx;
+            const num = versionNo(i);
+            return (
+              <span
+                key={v.path}
+                className={`inline-flex items-center gap-0.5 text-[10px] rounded border transition cursor-pointer ${
+                  isActive
+                    ? "bg-blue-600 text-white border-blue-500"
+                    : "bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-zinc-500"
+                }`}
+              >
+                <span
+                  onClick={() => setActiveIdx(i)}
+                  className="px-1.5 py-0.5"
+                  title={`查看 v${num}${i === 0 ? "（最新）" : ""}`}
+                >v{num}{i === 0 && versionList.length > 1 ? " ★" : ""}</span>
+                {onDeleteVersion && v.path && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteVersion(v.path);
+                      // 如果删的是当前展示的，跳到下一张可用版本
+                      if (i === safeIdx) setActiveIdx(0);
+                    }}
+                    disabled={deletingPath === v.path}
+                    className={`px-1 hover:bg-red-600 hover:text-white rounded-r disabled:opacity-50 ${
+                      isActive ? "text-white" : "text-zinc-500"
+                    }`}
+                    title={`删除 v${num}`}
+                  >×</button>
+                )}
+              </span>
+            );
+          })}
         </div>
+      )}
+      {/* 单版本时：仍提供 × 删除按钮（在大图右上角） */}
+      {versionList.length === 1 && displayedUrl && onDeleteVersion && displayedPath && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDeleteVersion(displayedPath); }}
+          disabled={deletingPath === displayedPath}
+          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[10px] leading-none disabled:opacity-50"
+          title="删除该图"
+        >×</button>
       )}
       <div className={`text-[11px] font-semibold truncate ${accent ? "text-indigo-300" : ""}`} title={label}>{label}</div>
       {sub && <div className="text-[9px] opacity-50 line-clamp-1 mb-0.5">{sub}</div>}

@@ -18,6 +18,8 @@ const RATIO_LABEL: Record<string, string> = {
 export function PromptPreview({
   pid, sid, scene,
   extraPrompt, extraWeight, onExtraPromptChange, onExtraWeightChange,
+  extraNegativePrompt = "", onExtraNegativePromptChange,
+  useTemplate = true, onUseTemplateChange,
   onSceneChanged,
 }: {
   pid: string; sid: string; scene?: Scene;
@@ -25,6 +27,10 @@ export function PromptPreview({
   extraWeight: number;
   onExtraPromptChange: (s: string) => void;
   onExtraWeightChange: (w: number) => void;
+  extraNegativePrompt?: string;
+  onExtraNegativePromptChange?: (s: string) => void;
+  useTemplate?: boolean;
+  onUseTemplateChange?: (b: boolean) => void;
   onSceneChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -32,11 +38,11 @@ export function PromptPreview({
   const [coverLightbox, setCoverLightbox] = useState(false);
   const [pickModal, setPickModal] = useState(false);
   const [picking, setPicking] = useState(false);
-  // 重新拉 prompt：让用户调 extra 后立刻能在「完整 prompt」里看到合成结果
-  const swrKey = open ? `prompt-${sid}-${extraWeight}-${extraPrompt}` : null;
+  // 重新拉 prompt：useTemplate 也参与 key，让 toggle 切换立即反映到预览
+  const swrKey = open ? `prompt-${sid}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${useTemplate}` : null;
   const { data, error } = useSWR(
     swrKey,
-    () => api.previewPrompt(pid, sid, extraPrompt, extraWeight)
+    () => api.previewPrompt(pid, sid, extraPrompt, extraWeight, extraNegativePrompt, !useTemplate)
   );
 
   return (
@@ -53,23 +59,36 @@ export function PromptPreview({
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <div className="text-[10px] opacity-50 uppercase">模板</div>
-            <button
-              onClick={() => setPickModal(true)}
-              disabled={picking}
-              className="text-[10px] px-2 py-0.5 rounded bg-blue-600/15 hover:bg-blue-600/30 border border-blue-500/50 hover:border-blue-400 text-blue-200 transition disabled:opacity-50"
-              title="更换 SKU 默认模板（生成时所有选中图都用这个）"
-            >⮂ 更换模板</button>
+          <div className="flex items-center gap-3 mb-0.5 flex-wrap">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={useTemplate}
+                onChange={(e) => onUseTemplateChange?.(e.target.checked)}
+                className="w-3.5 h-3.5 accent-blue-500"
+              />
+              <span className="text-[10px] uppercase opacity-70">启用模板</span>
+            </label>
+            {useTemplate && (
+              <button
+                onClick={() => setPickModal(true)}
+                disabled={picking}
+                className="text-[10px] px-2 py-0.5 rounded bg-blue-600/15 hover:bg-blue-600/30 border border-blue-500/50 hover:border-blue-400 text-blue-200 transition disabled:opacity-50"
+                title={scene ? "选其他模板" : "选一个模板"}
+              >{scene ? "⮂ 更换模板" : "📋 选择模板"}</button>
+            )}
           </div>
           {scene ? (
-            <>
+            <div className={!useTemplate ? "opacity-50" : ""}>
               <div className="text-xs font-semibold">{scene.name}</div>
               <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.category}</div>
               <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.desc || scene.prompt.slice(0, 60)}</div>
-            </>
+              {!useTemplate && (
+                <div className="text-[10px] text-amber-300 mt-1">已禁用 · 本次生成不用此模板（也不影响该模板的设置）</div>
+              )}
+            </div>
           ) : (
-            <div className="text-xs opacity-60">未设置模板 — 点"⮂ 更换模板"选一个</div>
+            <div className="text-xs opacity-60">未设置模板 — 点"⮂ 更换模板"选一个，或直接填下方"附加提示词"</div>
           )}
         </div>
       </div>
@@ -136,6 +155,19 @@ export function PromptPreview({
                                    : "硬性约束"}
           </span>
         </div>
+        {/* 负面提示词 */}
+        {onExtraNegativePromptChange && (
+          <>
+            <div className="text-[10px] uppercase opacity-50 pt-1">负面提示词（绝对不要出现）</div>
+            <textarea
+              value={extraNegativePrompt}
+              onChange={(e) => onExtraNegativePromptChange(e.target.value)}
+              placeholder="例：不要出现 logo、文字、水印、其他产品、人、手"
+              rows={2}
+              className="w-full text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 resize-y font-mono"
+            />
+          </>
+        )}
       </div>
 
       <button
@@ -152,17 +184,21 @@ export function PromptPreview({
           {!data && !error && <p className="text-xs opacity-50">加载中…</p>}
           {data && (
             <>
-              <div className="bg-zinc-950 border border-zinc-700 rounded p-3 text-[11px]">
-                <div className="opacity-50 uppercase text-[10px] mb-1">模板</div>
-                <div className="font-semibold mb-1">{data.scene_name}</div>
-                <div className="opacity-80">{data.scene_prompt}</div>
-                {data.negative_prompt && (
-                  <>
-                    <div className="opacity-50 uppercase text-[10px] mt-2 mb-1">负面 prompt</div>
-                    <div className="opacity-70">{data.negative_prompt}</div>
-                  </>
-                )}
-              </div>
+              {(data.scene_name || data.scene_prompt) ? (
+                <div className="bg-zinc-950 border border-zinc-700 rounded p-3 text-[11px]">
+                  <div className="opacity-50 uppercase text-[10px] mb-1">模板</div>
+                  <div className="font-semibold mb-1">{data.scene_name}</div>
+                  <div className="opacity-80">{data.scene_prompt}</div>
+                  {data.negative_prompt && (
+                    <>
+                      <div className="opacity-50 uppercase text-[10px] mt-2 mb-1">负面 prompt</div>
+                      <div className="opacity-70">{data.negative_prompt}</div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] opacity-60">已禁用模板 · 完整 prompt 仅由下方"附加提示词"组成。</div>
+              )}
 
               <div>
                 <div className="text-[10px] opacity-50 uppercase mb-1.5">完整 prompt（按 ratio 切换）</div>

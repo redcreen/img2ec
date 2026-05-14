@@ -106,6 +106,8 @@ def generate_all_masters(
     ratios: "list[str] | None" = None,
     extra_prompt: str = "",
     extra_weight: float = 0.0,
+    extra_negative_prompt: str = "",
+    overwrite: bool = False,
 ) -> dict[str, Path]:
     """Codex image-to-image 出 master。`ratios` 限定生成哪些尺寸（None=全部 5 张）。"""
     del ip_weight, seed  # unused
@@ -123,7 +125,11 @@ def generate_all_masters(
     cutout_path: Path | None = None
 
     for idx, (key, fname) in enumerate(items):
-        master_path = _next_version_path(out_dir, image_stem, key)
+        if overwrite:
+            # 覆盖模式：直接写到 base 文件，不开 v2/v3 新版本
+            master_path = out_dir / f"{image_stem}-{key}.jpg"
+        else:
+            master_path = _next_version_path(out_dir, image_stem, key)
 
         if key in CLOSEUP_KEYS:
             # 特写图：rembg 抠图 + 白底 → 局部裁剪 + 放大，不走 Codex
@@ -144,6 +150,7 @@ def generate_all_masters(
                 output_path=master_path,
                 extra_prompt=extra_prompt,
                 extra_weight=extra_weight,
+                extra_negative_prompt=extra_negative_prompt,
             )
         else:
             # Path A fallback：抠图 + AI bg + PIL composite
