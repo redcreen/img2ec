@@ -97,4 +97,11 @@ describe("toProcessExtra", () => {
     const r = toProcessExtra({ ...initialGenConfig, mode: "template" });
     expect(r).toBeUndefined();
   });
+
+  it("none mode → disableScene=true, no reference path", () => {
+    const r = toProcessExtra({ ...initialGenConfig, mode: "none" });
+    expect(r).toBeDefined();
+    expect(r!.disableScene).toBe(true);
+    expect(r!.referencePath).toBeNull();
+  });
 });

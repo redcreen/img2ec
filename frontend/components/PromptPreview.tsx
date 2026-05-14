@@ -90,11 +90,11 @@ export function PromptPreview({
 
   return (
     <div>
-      {/* 选项卡：模板 / 参考图 */}
+      {/* 选项卡：模板 / 参考图 / 都不选 */}
       <div className="flex gap-1 mb-3">
         <TabBtn active={mode === "template"} onClick={() => onModeChange("template")}>📋 模板</TabBtn>
         <TabBtn active={mode === "reference"} onClick={() => onModeChange("reference")}>🖼 参考图</TabBtn>
-        <span className="ml-auto text-[10px] opacity-50 self-center">二选一 · 都不用时下方"附加提示词"兜底</span>
+        <TabBtn active={mode === "none"} onClick={() => onModeChange("none")}>🚫 都不选</TabBtn>
       </div>
 
       {/* === 模板 tab === */}
@@ -126,6 +126,13 @@ export function PromptPreview({
               <div className="text-xs opacity-60">未设置模板 — 点上方按钮选一个</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* === 都不选 tab === */}
+      {mode === "none" && (
+        <div className="mb-3 text-xs opacity-70 bg-zinc-950 border border-zinc-700 rounded p-3">
+          🚫 本次生成不用 SKU 模板，也不用参考图 —— 完全由下方"附加提示词"驱动。
         </div>
       )}
 

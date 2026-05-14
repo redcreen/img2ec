@@ -4,7 +4,7 @@
  *  通过 useGenConfig(sid) 自动用 localStorage 按 SKU 持久化（刷新可恢复）。 */
 import { useEffect, useReducer } from "react";
 
-export type SceneMode = "template" | "reference";
+export type SceneMode = "template" | "reference" | "none";
 
 export interface ReferenceImage {
   path: string;      // 服务端绝对路径（processSku 时回传）
@@ -77,16 +77,17 @@ export function genConfigReducer(state: GenConfig, action: GenConfigAction): Gen
 }
 
 /** 派生：把 GenConfig 转成 processSku 的额外参数。
- *  - mode='reference' 且有图 → 走参考图分支（disableScene 隐式 true，referencePath 传过去）
- *  - mode='template' 但 useTemplate 被禁用历史 → disableScene=false (按 mode 走)
- *  返回 undefined 表示无任何额外参数（即"全默认模板"）。 */
+ *  - mode='template': 走 SKU 模板；disableScene=false
+ *  - mode='reference' + 有图: 走参考图驱动；disableScene 隐式 true + referencePath 传过去
+ *  - mode='none': 不用模板也不用参考图；disableScene=true，仅 extra_prompt 兜底
+ *  返回 undefined 表示无任何额外参数（即"全默认模板，extra 也没填"）。 */
 export function toProcessExtra(c: GenConfig): {
   prompt: string; weight: number; negative: string;
   disableScene: boolean;
   referencePath: string | null;
 } | undefined {
   const hasReference = c.mode === "reference" && c.referenceImage !== null;
-  const disableScene = c.mode === "reference";  // 参考图模式即"停模板"
+  const disableScene = c.mode !== "template";  // reference / none 都不要 SKU 模板
   const hasExtra =
     c.extraPrompt.trim() ||
     c.extraNegativePrompt.trim() ||
@@ -119,7 +120,10 @@ function deserialize(raw: string): GenConfig | null {
   try {
     const parsed = JSON.parse(raw) as SerializedConfig;
     // mode 字段在老版本里没有；默认 template，兼容老 localStorage
-    const mode: SceneMode = parsed.mode === "reference" ? "reference" : "template";
+    const mode: SceneMode =
+      parsed.mode === "reference" ? "reference"
+      : parsed.mode === "none" ? "none"
+      : "template";
     return {
       mode,
       referenceImage: parsed.referenceImage ?? null,
