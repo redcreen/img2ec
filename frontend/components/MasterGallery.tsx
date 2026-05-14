@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useCuration, type ImageKey } from "@/lib/curation";
 import type { SourceImage, Variant } from "@/lib/types";
+import { useUndo } from "@/lib/useUndoableDelete";
 import { Lightbox } from "./Lightbox";
 import { RatedImage } from "./RatedImage";
 
@@ -45,6 +46,7 @@ export function MasterGallery({
   onChanged: () => void;
 }) {
   const cur = useCuration(sid, variant.id);
+  const undo = useUndo();
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [active, setActive] = useState<ActiveTab>({ kind: "image", idx: 0 });
   const [thumbBusy, setThumbBusy] = useState(false);
@@ -202,31 +204,41 @@ export function MasterGallery({
     finally { setTabBusy(false); }
   };
 
-  const deleteVersion = async (imageId: string, ratio: string, path: string) => {
-    if (deletingPath) return;
-    if (!confirm(`确认删除该版本？\n（文件会从磁盘移除，无法撤销）`)) return;
-    setDeletingPath(path);
-    try {
-      await api.deleteMasterVersion(pid, sid, { image_id: imageId, ratio, path });
-      onChanged();
-    } catch (e: any) {
-      alert("删除失败：" + e.message);
-    } finally {
-      setDeletingPath(null);
-    }
+  // 删除走 undo 队列：点 × 立即从 UI 隐藏（isPending 过滤），10s 内可撤销；
+  // 超时 doDelete 触发真删。同 path 二次入队 → 重置倒计时。
+  const deleteVersion = (imageId: string, ratio: string, path: string, imgName: string) => {
+    const label = `${imgName} · ${ratio}`;
+    undo.enqueue({
+      id: path,
+      label,
+      doDelete: async () => {
+        try {
+          await api.deleteMasterVersion(pid, sid, { image_id: imageId, ratio, path });
+          onChanged();
+        } catch (e: any) {
+          alert("删除失败：" + e.message);
+          onChanged();
+        }
+      },
+      onCancel: () => onChanged(),  // 让 SWR 重渲，撤销后立刻可见
+    });
   };
-  const deleteDim = async (style: string, imageIdx: number, sentinel: string) => {
-    if (deletingPath) return;
-    if (!confirm(`确认删除该尺寸图？\n（文件会从磁盘移除，无法撤销）`)) return;
-    setDeletingPath(sentinel);
-    try {
-      await api.deleteDimensionImage(pid, sid, { variant_id: variant.id, style, image_idx: imageIdx });
-      onChanged();
-    } catch (e: any) {
-      alert("删除失败：" + e.message);
-    } finally {
-      setDeletingPath(null);
-    }
+  const deleteDim = (style: string, imageIdx: number) => {
+    const id = `dim:${variant.id}:${style}_img${imageIdx}`;
+    const label = `尺寸图${style === "white" ? "·白底" : "·模板"} · 原图${imageIdx + 1}`;
+    undo.enqueue({
+      id, label,
+      doDelete: async () => {
+        try {
+          await api.deleteDimensionImage(pid, sid, { variant_id: variant.id, style, image_idx: imageIdx });
+          onChanged();
+        } catch (e: any) {
+          alert("删除失败：" + e.message);
+          onChanged();
+        }
+      },
+      onCancel: () => onChanged(),
+    });
   };
 
   const cellProps = (
@@ -335,14 +347,19 @@ export function MasterGallery({
             <div className="text-[10px] opacity-40 mb-1">比例图 <span className="opacity-60">（重新生成保留历史；× 删除版本）</span></div>
             <div className="grid grid-cols-5 gap-1.5 mb-3">
               {RATIO_KEYS.map((r) => {
-                const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                const allVersions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                const versions = allVersions.filter(v => !undo.isPending(v.path));
                 const pending = (img.pending_ratios || []).includes(r);
+                // 主图 url：若头版本(versions[0])被 pending，整张 cell 视为已删
+                const headPath = (img.master_paths || {})[r];
+                const cellUrl = (headPath && undo.isPending(headPath)) ? undefined
+                  : (versions.length === 0 && allVersions.length > 0 ? undefined : img.master_urls?.[r]);
                 return (
                   <CurationCell
                     key={r}
                     {...cellProps(
-                      `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
-                      false, versions, (p) => deleteVersion(img.id, r, p), img.status,
+                      `img${idx}:${r}` as ImageKey, cellUrl, RATIO_LABEL[r] || r, SHARED_BY[r],
+                      false, versions, (p) => deleteVersion(img.id, r, p, img.name), img.status,
                       () => onRegenSingle(img, r), pending,
                     )}
                   />
@@ -354,14 +371,18 @@ export function MasterGallery({
                 <div className="text-[10px] opacity-40 mb-1">特写图（白底）</div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {CLOSEUP_KEYS.filter((k) => img.master_urls?.[k]).map((r) => {
-                    const versions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                    const allVersions = (img.master_history_urls?.[r] || []) as MasterVersion[];
+                    const versions = allVersions.filter(v => !undo.isPending(v.path));
                     const pending = (img.pending_ratios || []).includes(r);
+                    const headPath = (img.master_paths || {})[r];
+                    const cellUrl = (headPath && undo.isPending(headPath)) ? undefined
+                      : (versions.length === 0 && allVersions.length > 0 ? undefined : img.master_urls?.[r]);
                     return (
                       <CurationCell
                         key={r}
                         {...cellProps(
-                          `img${idx}:${r}` as ImageKey, img.master_urls?.[r], RATIO_LABEL[r] || r, SHARED_BY[r],
-                          false, versions, (p) => deleteVersion(img.id, r, p), img.status,
+                          `img${idx}:${r}` as ImageKey, cellUrl, RATIO_LABEL[r] || r, SHARED_BY[r],
+                          false, versions, (p) => deleteVersion(img.id, r, p, img.name), img.status,
                           () => onRegenSingle(img, r), pending,
                         )}
                       />
@@ -394,20 +415,22 @@ export function MasterGallery({
           </div>
           <div className="text-[10px] opacity-40 mb-1">× 单张删除</div>
           <div className="grid grid-cols-5 gap-1.5">
-            {dimEntries.map((d) => {
-              const label = `${d.style === "white" ? "白底" : "模板"}·原图${d.imgIdx + 1}`;
-              const sentinel = `dim:${d.key}`;
-              return (
-                <CurationCell
-                  key={d.key}
-                  {...cellProps(
-                    `size_${d.key}` as ImageKey, d.url, label, undefined, true,
-                    [{ path: sentinel, url: d.url }],
-                    () => deleteDim(d.style, d.imgIdx, sentinel),
-                  )}
-                />
-              );
-            })}
+            {dimEntries
+              .filter((d) => !undo.isPending(`dim:${variant.id}:${d.key}`))
+              .map((d) => {
+                const label = `${d.style === "white" ? "白底" : "模板"}·原图${d.imgIdx + 1}`;
+                const sentinel = `dim:${d.key}`;
+                return (
+                  <CurationCell
+                    key={d.key}
+                    {...cellProps(
+                      `size_${d.key}` as ImageKey, d.url, label, undefined, true,
+                      [{ path: sentinel, url: d.url }],
+                      () => deleteDim(d.style, d.imgIdx),
+                    )}
+                  />
+                );
+              })}
           </div>
         </div>
       )}
@@ -424,6 +447,7 @@ export function MasterGallery({
                 const m = k.match(/^size_(white|template)_img(\d+)$/);
                 if (m) {
                   const style = m[1]; const imgIdx = parseInt(m[2]);
+                  if (undo.isPending(`dim:${variant.id}:${style}_img${imgIdx}`)) return null;
                   const sentinel = `dim:${style}_img${imgIdx}`;
                   return (
                     <CurationCell
@@ -431,7 +455,7 @@ export function MasterGallery({
                       {...cellProps(
                         k, o.url, o.label, undefined, true,
                         [{ path: sentinel, url: o.url }],
-                        () => deleteDim(style, imgIdx, sentinel),
+                        () => deleteDim(style, imgIdx),
                       )}
                     />
                   );
@@ -442,13 +466,16 @@ export function MasterGallery({
                 if (m) {
                   const idx = parseInt(m[1]); const ratio = m[2];
                   const img = images[idx];
-                  const versions = (img?.master_history_urls?.[ratio] || []) as MasterVersion[];
+                  const allVersions = (img?.master_history_urls?.[ratio] || []) as MasterVersion[];
+                  const versions = allVersions.filter(v => !undo.isPending(v.path));
+                  const headPath = (img?.master_paths || {})[ratio];
+                  if (headPath && undo.isPending(headPath) && versions.length === 0) return null;
                   return (
                     <CurationCell
                       key={k}
                       {...cellProps(
                         k, o.url, o.label, undefined, false,
-                        versions, (p) => img && deleteVersion(img.id, ratio, p),
+                        versions, (p) => img && deleteVersion(img.id, ratio, p, img.name),
                       )}
                     />
                   );

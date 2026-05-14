@@ -15,8 +15,17 @@ import { ConcurrencyControl } from "@/components/ConcurrencyControl";
 import { SceneSelectModal } from "@/components/SceneSelectModal";
 import { SourceImageList } from "@/components/SourceImageList";
 import { toProcessExtra, useGenConfig } from "@/lib/genConfig";
+import { UndoProvider } from "@/lib/useUndoableDelete";
 
 export default function SkuDetailPage() {
+  return (
+    <UndoProvider>
+      <SkuDetailPageInner />
+    </UndoProvider>
+  );
+}
+
+function SkuDetailPageInner() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
   const router = useRouter();
   const { data: sku, mutate } = useSWR(
