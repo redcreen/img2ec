@@ -243,11 +243,30 @@ def upload_image(
     vdir = variant_dir_fn(skud, variant)
     src_d = vdir / "source"
     src_d.mkdir(parents=True, exist_ok=True)
-    dst = src_d / file.filename
-    dst.write_bytes(file.file.read())
+
+    orig_name = file.filename or "upload"
+    raw_bytes = file.file.read()
+    # HEIC 自动转 JPG — Codex 拒绝 heic 输入；同时让前端 <img> 也能直显
+    final_name = orig_name
+    if orig_name.lower().endswith((".heic", ".heif")):
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+            from PIL import Image
+            import io
+            with Image.open(io.BytesIO(raw_bytes)) as im:
+                rgb = im.convert("RGB")
+                buf = io.BytesIO()
+                rgb.save(buf, "JPEG", quality=92)
+                raw_bytes = buf.getvalue()
+            final_name = Path(orig_name).with_suffix(".jpg").name
+        except Exception as e:
+            raise HTTPException(400, f"HEIC 解码失败：{e}")
+    dst = src_d / final_name
+    dst.write_bytes(raw_bytes)
 
     img = SourceImage(
-        id=str(uuid.uuid4()), variant_id=variant.id, name=file.filename, src_path=str(dst),
+        id=str(uuid.uuid4()), variant_id=variant.id, name=final_name, src_path=str(dst),
         status=ImageStatus.READY.value,
     )
     db.add(img)

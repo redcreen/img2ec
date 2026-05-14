@@ -88,6 +88,9 @@ TARGET_DIMENSIONS: dict[str, tuple[int, int]] = {
 CLOSEUP_KEYS = {"front", "side", "detail"}
 
 
+_REFUSAL_HINTS = ("refused to invoke", "image_generation", "No PNG produced", "directory does not exist")
+
+
 def _run_codex_to_image(
     *,
     full_prompt: str,
@@ -96,28 +99,41 @@ def _run_codex_to_image(
     output_path: Path,
     timeout: int,
     codex_bin: str = "codex",  # kept for API stability; ignored — gen.py always uses "codex"
+    max_retries: int = 2,
 ) -> Path:
-    """Run codex exec via the codex-imagen in-process API, then center-crop/resize to target_dims and save as JPEG."""
+    """Run codex exec via the codex-imagen in-process API; on stochastic refusal
+    (agent didn't call image_generation tool), automatically retry up to max_retries
+    extra times (total = 1 + max_retries attempts). Then center-crop/resize and save."""
     refs = [input_image] if input_image is not None else None
-    with tempfile.TemporaryDirectory(prefix="img2ec-codex-stage-") as td:
-        raw_png = Path(td) / "raw.png"
-        try:
-            _codex_imagen.generate(
-                full_prompt,
-                raw_png,
-                refs=refs,
-                timeout_sec=timeout,
-            )
-        except _codex_imagen.GenError as e:
-            raise CodexImageError(str(e)) from e
+    last_err: Exception | None = None
+    for attempt in range(max_retries + 1):
+        with tempfile.TemporaryDirectory(prefix="img2ec-codex-stage-") as td:
+            raw_png = Path(td) / "raw.png"
+            try:
+                _codex_imagen.generate(
+                    full_prompt,
+                    raw_png,
+                    refs=refs,
+                    timeout_sec=timeout,
+                )
+            except _codex_imagen.GenError as e:
+                msg = str(e)
+                last_err = e
+                # 仅对"模型拒绝调工具/没产图"类失败重试；真超时 / auth 错 / etc 不重试
+                if any(h in msg for h in _REFUSAL_HINTS) and attempt < max_retries:
+                    continue
+                raise CodexImageError(msg) from e
 
-        with Image.open(raw_png) as src:
-            rgb = src.convert("RGB")
-            if rgb.size != target_dims:
-                rgb = _fit_to_target(rgb, target_dims)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            rgb.save(output_path, "JPEG", quality=92)
-    return output_path
+            with Image.open(raw_png) as src:
+                rgb = src.convert("RGB")
+                if rgb.size != target_dims:
+                    rgb = _fit_to_target(rgb, target_dims)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                rgb.save(output_path, "JPEG", quality=92)
+            return output_path
+
+    # 理论上不会到这（前面要么 return，要么 raise）；保底
+    raise CodexImageError(str(last_err) if last_err else "unknown codex error")
 
 
 def generate_background_image(
