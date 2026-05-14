@@ -35,10 +35,12 @@ def process_image_task(
 
         sku = db.get(SKU, img.sku_id)
         project: Project = db.get(Project, sku.project_id)
-        scene: Scene | None = db.get(Scene, sku.scene_id) if sku.scene_id else None
+        # 优先用 image 自己的 scene_id；fallback 到 SKU 默认
+        effective_scene_id = img.scene_id or sku.scene_id
+        scene: Scene | None = db.get(Scene, effective_scene_id) if effective_scene_id else None
         if scene is None:
             img.status = ImageStatus.FAILED.value
-            img.err_msg = "no scene assigned to SKU"
+            img.err_msg = "no scene assigned (image-level or sku-level)"
             db.commit()
             return "no_scene"
 

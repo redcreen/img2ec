@@ -23,6 +23,7 @@ class SourceImageOut(BaseModel):
     master_paths: dict
     master_history: dict = Field(default_factory=dict)
     derived_paths: dict
+    scene_id: str | None = None  # per-image 模板覆盖；null = 走 SKU 默认
     # Web-servable URLs (computed from absolute filesystem paths in skus.py routes)
     src_url: str | None = None
     master_urls: dict = Field(default_factory=dict)

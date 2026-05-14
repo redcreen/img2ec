@@ -12,6 +12,7 @@ import { PromptPreview } from "@/components/PromptPreview";
 import { VariantTabs } from "@/components/VariantTabs";
 import { Lightbox } from "@/components/Lightbox";
 import { ConcurrencyControl } from "@/components/ConcurrencyControl";
+import { SceneSelectModal } from "@/components/SceneSelectModal";
 
 export default function SkuDetailPage() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
@@ -30,6 +31,8 @@ export default function SkuDetailPage() {
   const [extraPrompt, setExtraPrompt] = useState("");
   const [extraWeight, setExtraWeight] = useState(0.5);
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
+  const [selectedImgIds, setSelectedImgIds] = useState<Set<string>>(new Set());
+  const [sceneModalImgId, setSceneModalImgId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // 当 sku 加载后，默认激活第一个变体
@@ -69,7 +72,8 @@ export default function SkuDetailPage() {
         ? { prompt: extraPrompt.trim(), weight: extraWeight }
         : undefined;
       if (args.ratios.length > 0) {
-        await api.processSku(pid, sid, args.ratios, activeVariant.id, extra);
+        const imageIds = selectedImgIds.size > 0 ? Array.from(selectedImgIds) : undefined;
+        await api.processSku(pid, sid, args.ratios, activeVariant.id, extra, imageIds);
       }
       if (args.dimStyles.length > 0) {
         await api.regenerateDimension(pid, sid, args.dimStyles, activeVariant.id, args.dimImageIndices);
@@ -253,43 +257,99 @@ export default function SkuDetailPage() {
               {variantImages.length === 0 ? (
                 <p className="text-xs opacity-60">该变体还没上传原图 — 点右上"+ 添加"</p>
               ) : (
-                <div className="space-y-2 max-h-[480px] overflow-y-auto">
-                  {variantImages.map(img => (
-                    <div key={img.id}
-                      className="group bg-zinc-950 border border-zinc-800 rounded p-2 flex items-center gap-3 relative">
-                      {img.src_url ? (
-                        <img src={img.src_url} alt={img.name}
-                          onClick={() => setSourceLightbox({ src: img.src_url!, alt: img.name })}
-                          className="w-20 h-20 object-cover rounded flex-shrink-0 cursor-zoom-in hover:opacity-90 transition"
-                          title="点击查看大图" />
-                      ) : (
-                        <div className="w-20 h-20 bg-zinc-800 rounded flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs truncate" title={img.name}>{img.name}</div>
-                        <div className="text-[10px] opacity-55 mt-1 flex items-center gap-1.5">
-                          <StatusPill status={img.status} />
+                <>
+                  <div className="flex items-center gap-2 mb-2 text-[11px] flex-wrap">
+                    <button
+                      onClick={() => setSelectedImgIds(new Set(variantImages.map(i => i.id)))}
+                      className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
+                    >全选</button>
+                    <button
+                      onClick={() => setSelectedImgIds(new Set())}
+                      className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
+                    >清空</button>
+                    <span className="opacity-60">
+                      已选 {selectedImgIds.size}/{variantImages.length}
+                      {selectedImgIds.size === 0 && ' · 点击"▶ 生成"会处理全部'}
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                    {variantImages.map(img => {
+                      const sceneForThisImg = scenes?.find(s => s.id === (img.scene_id || sku.scene_id));
+                      const isSelected = selectedImgIds.has(img.id);
+                      return (
+                        <div key={img.id}
+                          className={`group bg-zinc-950 border rounded p-2 flex items-center gap-3 relative ${
+                            isSelected ? "border-blue-500" : "border-zinc-800"
+                          }`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const next = new Set(selectedImgIds);
+                              if (e.target.checked) next.add(img.id); else next.delete(img.id);
+                              setSelectedImgIds(next);
+                            }}
+                            className="w-4 h-4 accent-blue-500 cursor-pointer flex-shrink-0"
+                            title="勾选后只生成选中的"
+                          />
+                          {img.src_url ? (
+                            <img src={img.src_url} alt={img.name}
+                              onClick={() => setSourceLightbox({ src: img.src_url!, alt: img.name })}
+                              className="w-20 h-20 object-cover rounded flex-shrink-0 cursor-zoom-in hover:opacity-90 transition"
+                              title="点击查看大图" />
+                          ) : (
+                            <div className="w-20 h-20 bg-zinc-800 rounded flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs truncate" title={img.name}>{img.name}</div>
+                            <div className="text-[10px] opacity-55 mt-1 flex items-center gap-1.5">
+                              <StatusPill status={img.status} />
+                            </div>
+                            <button
+                              onClick={() => setSceneModalImgId(img.id)}
+                              className="text-[10px] mt-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center gap-1 max-w-full"
+                              title="为该原图指定模板（每张图可独立）"
+                            >
+                              <span className="opacity-70">📋 模板:</span>
+                              <span className="truncate font-semibold">
+                                {sceneForThisImg?.name || "（未指定）"}
+                              </span>
+                              {img.scene_id && <span className="text-[9px] text-emerald-400">(已覆盖)</span>}
+                            </button>
+                            {img.err_msg && (
+                              <div className="text-[10px] text-red-400 truncate mt-0.5" title={img.err_msg}>
+                                {img.err_msg}
+                              </div>
+                            )}
+                            {["cutting", "generating", "composing"].includes(img.status) && (
+                              <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
+                                <div className="h-full bg-amber-500 transition-all"
+                                  style={{ width: `${img.progress}%` }} />
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => onDeleteImage(img.id, img.name)}
+                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[11px] leading-none opacity-0 group-hover:opacity-100 hover:bg-red-500"
+                            title="删除该原图"
+                          >×</button>
                         </div>
-                        {img.err_msg && (
-                          <div className="text-[10px] text-red-400 truncate mt-0.5" title={img.err_msg}>
-                            {img.err_msg}
-                          </div>
-                        )}
-                        {["cutting", "generating", "composing"].includes(img.status) && (
-                          <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
-                            <div className="h-full bg-amber-500 transition-all"
-                              style={{ width: `${img.progress}%` }} />
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => onDeleteImage(img.id, img.name)}
-                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[11px] leading-none opacity-0 group-hover:opacity-100 hover:bg-red-500"
-                        title="删除该原图"
-                      >×</button>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              {sceneModalImgId && (
+                <SceneSelectModal
+                  pid={pid}
+                  imageName={variantImages.find(i => i.id === sceneModalImgId)?.name || ""}
+                  currentSceneId={variantImages.find(i => i.id === sceneModalImgId)?.scene_id || sku.scene_id}
+                  onClose={() => setSceneModalImgId(null)}
+                  onPick={async (sceneId) => {
+                    await api.patchImage(pid, sid, sceneModalImgId!, { scene_id: sceneId });
+                    await mutate();
+                  }}
+                />
               )}
             </div>
 

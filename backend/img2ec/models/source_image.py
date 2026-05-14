@@ -32,6 +32,10 @@ class SourceImage(Base, TimestampMixin):
     # master_history[ratio] = [path_newest, ..., path_oldest]  始终包含 master_paths[ratio] 作首项
     master_history: Mapped[dict] = mapped_column(JSON, default=dict)
     derived_paths: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 每张图可独立指定模板；None = 走 SKU 默认 scene_id
+    scene_id: Mapped[str | None] = mapped_column(
+        ForeignKey("scenes.id", ondelete="SET NULL"), nullable=True,
+    )
 
     variant = relationship("Variant", back_populates="images")
 

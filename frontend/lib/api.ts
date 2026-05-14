@@ -128,6 +128,7 @@ export const api = {
     pid: string, sid: string,
     ratios?: string[], variantId?: string,
     extra?: { prompt: string; weight: number },
+    imageIds?: string[],
   ) => {
     const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
     const body: any = {};
@@ -136,11 +137,17 @@ export const api = {
       body.extra_prompt = extra.prompt;
       body.extra_weight = extra.weight;
     }
+    if (imageIds && imageIds.length > 0) body.image_ids = imageIds;
     return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
       body: Object.keys(body).length ? JSON.stringify(body) : undefined,
     });
   },
+  patchImage: (pid: string, sid: string, iid: string, body: { scene_id: string | null }) =>
+    req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   previewPrompt: (pid: string, sid: string, extraPrompt = "", extraWeight = 0) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {

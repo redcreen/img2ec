@@ -289,6 +289,34 @@ def delete_image(project_id: str, sku_id: str, image_id: str, db: Session = Depe
     db.commit()
 
 
+class ImagePatchRequest(BaseModel):
+    scene_id: str | None = None  # null = 清除 per-image override，走 SKU 默认
+
+
+@router.patch("/{sku_id}/images/{image_id}", response_model=SKUOut)
+def patch_image(
+    project_id: str, sku_id: str, image_id: str,
+    payload: ImagePatchRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """改单图的 scene_id（per-image 模板覆盖）。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    img = db.get(SourceImage, image_id)
+    if img is None or img.sku_id != sku_id:
+        raise HTTPException(404, "image not found")
+    if payload.scene_id is not None:
+        from img2ec.models import Scene
+        sc = db.get(Scene, payload.scene_id)
+        if sc is None or sc.project_id != project_id:
+            raise HTTPException(404, "scene not found in this project")
+    img.scene_id = payload.scene_id
+    db.commit()
+    db.refresh(sku)
+    return _enrich(sku)
+
+
 VALID_RATIOS = {"1x1", "long", "3x4", "9x16", "16x9", "front", "side", "detail"}
 ORDERED_RATIOS = ["1x1", "long", "3x4", "9x16", "16x9", "front", "side", "detail"]
 
@@ -330,6 +358,7 @@ class ProcessRequest(BaseModel):
     ratios: list[str] | None = None  # None=全部 5 个；指定 ⊂ {"1x1","long","3x4","9x16","16x9"}
     extra_prompt: str = ""
     extra_weight: float = 0.0
+    image_ids: list[str] | None = None  # 仅处理这些 image；None = 整个 variant 的所有图
 
 
 @router.post("/{sku_id}/process", status_code=202)
@@ -340,19 +369,23 @@ def process_sku(
     db: Session = Depends(get_session),
 ) -> dict:
     """触发生成。
-    - 无 variant_id：处理产品下所有变体（每变体跑自己的原图）
-    - 指定 variant_id：只处理该变体
-    - ratios 同前：未指定即全部 8 种规格
+    - image_ids 指定：只处理这些图（跨 variant）
+    - 否则按 variant_id 处理（None = 所有 variant）
+    - ratios：未指定即全部 8 种规格
     """
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
+    # 每张图独立 scene_id；如果某张图自己没有也没 SKU 默认 → 报错
     if sku.scene_id is None:
-        raise HTTPException(400, "no scene assigned")
+        any_img_has_scene = any(im.scene_id for v in sku.variants for im in v.images)
+        if not any_img_has_scene:
+            raise HTTPException(400, "no scene assigned (sku level or per-image)")
 
     ratios = payload.ratios if payload else None
     extra_prompt = (payload.extra_prompt if payload else "") or ""
     extra_weight = float(payload.extra_weight if payload else 0.0)
+    image_ids_filter = (payload.image_ids if payload else None) or None
     if ratios is not None:
         if not ratios:
             raise HTTPException(400, "ratios cannot be empty list (omit field for all 8)")
@@ -380,12 +413,17 @@ def process_sku(
     }
     sku.status = SKUStatus.RUNNING.value
     image_ids: list[str] = []
+    filter_set = set(image_ids_filter) if image_ids_filter else None
     for v in target_variants:
         for img in v.images:
+            if filter_set is not None and img.id not in filter_set:
+                continue
             if img.status not in IN_FLIGHT:
                 img.status = ImageStatus.PENDING.value
                 img.err_msg = None
             image_ids.append(img.id)
+    if filter_set is not None and not image_ids:
+        raise HTTPException(400, "image_ids 中没有匹配该 SKU 的图")
     db.commit()
 
     from img2ec.infra import state_store
