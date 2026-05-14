@@ -566,6 +566,22 @@ function CurationCell({
             v{versionNo(safeIdx)}/{versionList.length}
           </span>
         )}
+        {/* 右上角统一删除按钮：删的是当前展示的那一版 */}
+        {displayedUrl && onDeleteVersion && displayedPath && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteVersion(displayedPath);
+              // 多版本：删的若是当前激活，跳到下一张
+              if (versionList.length > 1) setActiveIdx(0);
+            }}
+            disabled={deletingPath === displayedPath}
+            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[11px] leading-none disabled:opacity-50 z-10"
+            title={versionList.length > 1
+              ? `删除当前 v${versionNo(safeIdx)}（10s 内可撤销）`
+              : "删除该图（10s 内可撤销）"}
+          >×</button>
+        )}
       </div>
       {/* 版本标签卡：v1 / v2 / v3 ... 点击切换显示，× 删除该版本 */}
       {versionList.length > 1 && (
@@ -606,15 +622,6 @@ function CurationCell({
             );
           })}
         </div>
-      )}
-      {/* 单版本时：仍提供 × 删除按钮（在大图右上角） */}
-      {versionList.length === 1 && displayedUrl && onDeleteVersion && displayedPath && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDeleteVersion(displayedPath); }}
-          disabled={deletingPath === displayedPath}
-          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-600/85 hover:bg-red-500 text-white text-[10px] leading-none disabled:opacity-50"
-          title="删除该图"
-        >×</button>
       )}
       <div className={`text-[11px] font-semibold truncate ${accent ? "text-indigo-300" : ""}`} title={label}>{label}</div>
       {sub && <div className="text-[9px] opacity-50 line-clamp-1 mb-0.5">{sub}</div>}
