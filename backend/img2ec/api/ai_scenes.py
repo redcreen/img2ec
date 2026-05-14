@@ -267,6 +267,8 @@ def expand_from_keywords(
         raw = codex_text(prompt=sys_prompt, timeout=120)
     except CodexImageError as e:
         raise HTTPException(502, f"Codex text error: {e}")
+    except Exception as e:
+        raise HTTPException(502, f"text call interrupted: {e}")
 
     parsed = _extract_json(raw)
     name = (parsed.get("name") or "").strip()[:60]
@@ -281,6 +283,8 @@ def expand_from_keywords(
         cover_path, cover_url = _generate_preview_cover(eng_prompt)
     except CodexImageError as e:
         raise HTTPException(502, f"cover render failed: {e}")
+    except Exception as e:
+        raise HTTPException(502, f"cover render interrupted: {e}")
 
     return {
         "name": name,
@@ -445,8 +449,9 @@ def expand_from_reference(
         raw = codex_text(prompt=sys_prompt, input_image=tmp, timeout=120)
     except CodexImageError as e:
         raise HTTPException(502, f"Codex vision error: {e}")
+    except Exception as e:  # subprocess 被 reload 杀掉 / 任何意外
+        raise HTTPException(502, f"vision call interrupted: {e}")
     finally:
-        # 输入图清掉（cover 是新生成的）
         try: tmp.unlink()
         except OSError: pass
 
@@ -463,6 +468,8 @@ def expand_from_reference(
         cover_path, cover_url = _generate_preview_cover(eng_prompt)
     except CodexImageError as e:
         raise HTTPException(502, f"cover render failed: {e}")
+    except Exception as e:
+        raise HTTPException(502, f"cover render interrupted: {e}")
 
     return {
         "name": name,

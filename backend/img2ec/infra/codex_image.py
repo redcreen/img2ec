@@ -78,12 +78,19 @@ def _run_codex_to_image(
                     continue
                 raise CodexImageError(str(e)) from e
 
-            with Image.open(raw_png) as src:
-                rgb = src.convert("RGB")
-                if rgb.size != target_dims:
-                    rgb = _fit_to_target(rgb, target_dims)
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                rgb.save(output_path, "JPEG", quality=92)
+            # Image.open / save 都可能炸（PNG 损坏 / 磁盘满 / 权限）—
+            # 全部归并到 CodexImageError，避免到处冒泡成 500
+            try:
+                with Image.open(raw_png) as src:
+                    rgb = src.convert("RGB")
+                    if rgb.size != target_dims:
+                        rgb = _fit_to_target(rgb, target_dims)
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    rgb.save(output_path, "JPEG", quality=92)
+            except Exception as e:
+                raise CodexImageError(
+                    f"failed to decode/save codex output: {e}"
+                ) from e
             if not output_path.exists() or output_path.stat().st_size == 0:
                 raise CodexImageError(f"output file missing or empty after save: {output_path}")
             return output_path
