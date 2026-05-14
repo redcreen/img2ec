@@ -497,12 +497,14 @@ def process_sku(
     }
     sku.status = SKUStatus.RUNNING.value
     image_ids: list[str] = []
+    fresh_image_ids: list[str] = []  # 此次重新激活的图（之前 done/failed/draft）
     filter_set = set(image_ids_filter) if image_ids_filter else None
     for v in target_variants:
         for img in v.images:
             if filter_set is not None and img.id not in filter_set:
                 continue
             if img.status not in IN_FLIGHT:
+                fresh_image_ids.append(img.id)
                 img.status = ImageStatus.PENDING.value
                 img.err_msg = None
             image_ids.append(img.id)
@@ -512,9 +514,13 @@ def process_sku(
 
     from img2ec.infra import state_store
     from img2ec.tasks.pipeline_tasks import process_image_task
+    # 自愈：fresh 图清掉孤儿 pending_ratios（上次入队失败留下的）
+    for iid in fresh_image_ids:
+        state_store.pending_ratios_clear(iid)
+    # 先发 celery 任务（失败抛错），成功后才记录 pending，避免 Redis 孤儿
     for iid in image_ids:
-        state_store.pending_ratios_add(iid, wanted)
         process_image_task.delay(iid, wanted, extra_prompt, extra_weight, extra_negative_prompt, overwrite, disable_scene)
+        state_store.pending_ratios_add(iid, wanted)
 
     return {"queued": len(image_ids), "ratios": wanted}
 
