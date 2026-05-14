@@ -211,17 +211,23 @@ export function PromptPreview({
         />
       )}
 
-      {/* 附加提示词 — 任一 mode 下都可用 */}
-      <div className="mb-3 bg-zinc-950 border border-zinc-700 rounded p-3 space-y-2">
+      {/* 附加提示词（正向） — 任一 mode 下都可用 */}
+      <div className="mb-2 bg-zinc-950 border border-zinc-700 rounded p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase opacity-50">附加提示词（叠加在场景之上）</div>
+          <div className="text-[11px] uppercase tracking-wide opacity-70">
+            <span className="text-green-400 mr-1">✚</span>附加提示词 · 正向
+          </div>
           <div className="text-[10px] opacity-50">不持久化 · 只影响本次生成</div>
         </div>
         <textarea
           value={extraPrompt}
           onChange={(e) => onExtraPromptChange(e.target.value)}
-          placeholder="例：保留产品 logo 不被遮挡；产品摆放在桌面靠近窗户的位置；偏暖光"
-          rows={2}
+          placeholder={
+            mode === "reference"
+              ? "例：产品放在画面中央偏下，占 40% 大小；沿用参考图的暖色调；产品颜色与图案严格保持原图；不要复制参考图里的文字"
+              : "例：保留产品 logo 不被遮挡；产品摆放在桌面靠近窗户的位置；偏暖光"
+          }
+          rows={3}
           className="w-full text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 resize-y font-mono"
         />
         <div className="flex items-center gap-3">
@@ -251,19 +257,23 @@ export function PromptPreview({
                                    : "硬性约束"}
           </span>
         </div>
-        {onExtraNegativePromptChange && (
-          <>
-            <div className="text-[10px] uppercase opacity-50 pt-1">负面提示词（绝对不要出现）</div>
-            <textarea
-              value={extraNegativePrompt}
-              onChange={(e) => onExtraNegativePromptChange(e.target.value)}
-              placeholder="例：不要出现 logo、文字、水印、其他产品、人、手"
-              rows={2}
-              className="w-full text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 resize-y font-mono"
-            />
-          </>
-        )}
       </div>
+
+      {/* 附加提示词（负向）—— 独立卡片让它一眼可见 */}
+      {onExtraNegativePromptChange && (
+        <div className="mb-3 bg-zinc-950 border border-zinc-700 rounded p-3 space-y-2">
+          <div className="text-[11px] uppercase tracking-wide opacity-70">
+            <span className="text-red-400 mr-1">⊘</span>附加提示词 · 负向（绝对不要出现）
+          </div>
+          <textarea
+            value={extraNegativePrompt}
+            onChange={(e) => onExtraNegativePromptChange(e.target.value)}
+            placeholder="例：不要出现 logo、文字、水印、其他产品、人、手、动物、塑料感"
+            rows={2}
+            className="w-full text-xs bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 resize-y font-mono"
+          />
+        </div>
+      )}
 
       <button
         onClick={() => setOpen(o => !o)}
