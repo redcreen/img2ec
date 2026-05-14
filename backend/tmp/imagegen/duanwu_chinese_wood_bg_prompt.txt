@@ -1,0 +1,7 @@
+Generate a single high-resolution 1792x1024 photorealistic scene-only background for premium Chinese mid-range home decor e-commerce product photography.
+
+Scene: Chinese-style interior product photography scene. Foreground: polished walnut wood tabletop, 鸡翅木 or 红木 feeling, rich warm grain, with a clear empty placement area in the center-lower foreground for a small textile product. Midground: softly out-of-focus traditional Chinese wooden cabinet with brass handles or a carved wooden chair. Background: subtle hint of paper window or bamboo curtain. Side detail: green leaves of a small potted plant just at the frame edge. Soft side window daylight with warm interior fill light. Shallow depth of field, foreground tabletop sharp and believable, background softly blurred.
+
+Composition: landscape 16:9, tabletop occupies the lower half, camera at product-photo tabletop height, natural perspective, enough negative space for one product to be placed later.
+
+Critical constraints: empty scene only, absolutely NO product, NO duplicate objects resembling the product, NO people, NO text, NO logo, NO watermark. Do not include labels, signage, calligraphy, brand marks, or readable characters.

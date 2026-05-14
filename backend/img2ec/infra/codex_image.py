@@ -125,7 +125,7 @@ def generate_background_image(
     prompt: str,
     ratio_key: str,
     output_path: Path,
-    timeout: int = 240,
+    timeout: int = 600,
     codex_bin: str = "codex",
 ) -> Path:
     """Generate a scene-only background image (商品 to be PIL-composited later).
@@ -212,7 +212,7 @@ def generate_master_from_input(
     scene_prompt: str,
     ratio_key: str,
     output_path: Path,
-    timeout: int = 300,
+    timeout: int = 600,
     codex_bin: str = "codex",
     extra_prompt: str = "",
     extra_weight: float = 0.0,
@@ -255,7 +255,7 @@ def generate_size_diagram(
     output_path: Path,
     style: str = "white",  # "white" 纯白底；"template" 用 scene_prompt 描述的场景做背景
     scene_prompt: str | None = None,
-    timeout: int = 300,
+    timeout: int = 600,
     codex_bin: str = "codex",
 ) -> Path:
     """Codex 直接生成尺寸示意图：商品本体 + 双向箭头标尺 + 中文尺寸标注。

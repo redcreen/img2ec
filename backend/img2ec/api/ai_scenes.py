@@ -247,7 +247,7 @@ def _generate_preview_cover(prompt: str) -> tuple[Path, str]:
     """用 prompt 跑一张 1:1 cover，返回 (path, url)。"""
     pid_ = uuid.uuid4().hex[:10]
     out = _AI_PREVIEW_DIR / f"ai-{pid_}.jpg"
-    generate_background_image(prompt=prompt, ratio_key="1x1", output_path=out, timeout=240)
+    generate_background_image(prompt=prompt, ratio_key="1x1", output_path=out, timeout=600)
     return out, f"/static/ai-previews/{out.name}"
 
 
