@@ -70,6 +70,11 @@ def process_image_task(
             ④ 检查 SKU 是否被 cancel
             注意：同一 image 可能并发被 2 个 worker 处理（队列模式下用户连续 enqueue）。
             在改 master_paths/history 前 refresh 拿最新值，减小写丢概率。"""
+            # 防御：文件必须真的在盘上才登记，避免 race condition 把幽灵路径写入 DB
+            if not master_path.exists():
+                from img2ec.infra import state_store as _ss
+                _ss.pending_ratios_remove(image_id, key)
+                return
             db.refresh(img)
             mp = dict(img.master_paths or {})
             mp[key] = str(master_path)

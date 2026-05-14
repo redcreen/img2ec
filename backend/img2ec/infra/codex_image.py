@@ -130,6 +130,9 @@ def _run_codex_to_image(
                     rgb = _fit_to_target(rgb, target_dims)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 rgb.save(output_path, "JPEG", quality=92)
+            # 保证文件真的落盘了再返回
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                raise CodexImageError(f"output file missing or empty after save: {output_path}")
             return output_path
 
     # 理论上不会到这（前面要么 return，要么 raise）；保底

@@ -86,7 +86,11 @@ def derive_all_for_image(
             if master_key not in master_paths:
                 # selective 生成模式下部分 ratio 没生 master — 跳过对应平台输出，不报错
                 continue
-            with Image.open(master_paths[master_key]) as src:
+            master_path = master_paths[master_key]
+            # 防御：master_paths 可能登记了已删/未写出的幽灵路径
+            if not Path(str(master_path)).exists():
+                continue
+            with Image.open(master_path) as src:
                 src_rgb = src.convert("RGB")
                 derived = _resize_to(src_rgb, item["size"], master_key)
                 if item["size"]:
