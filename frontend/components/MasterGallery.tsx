@@ -48,6 +48,8 @@ export function MasterGallery({
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [active, setActive] = useState<ActiveTab>({ kind: "image", idx: 0 });
   const [thumbBusy, setThumbBusy] = useState(false);
+  const [tabBusy, setTabBusy] = useState(false);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
 
   useEffect(() => { setActive({ kind: "image", idx: 0 }); }, [variant.id, images.length]);
 
@@ -134,7 +136,6 @@ export function MasterGallery({
     );
   }
 
-  const [tabBusy, setTabBusy] = useState(false);
   const onDeleteAllForImage = async (img: SourceImage) => {
     if (tabBusy) return;
     if (!confirm(`确认删除「${img.name}」下所有 master 版本？\n（含历史版本 + 派生图，不可撤销）`)) return;
@@ -201,7 +202,6 @@ export function MasterGallery({
     finally { setTabBusy(false); }
   };
 
-  const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const deleteVersion = async (imageId: string, ratio: string, path: string) => {
     if (deletingPath) return;
     if (!confirm(`确认删除该版本？\n（文件会从磁盘移除，无法撤销）`)) return;

@@ -13,6 +13,8 @@ import { VariantTabs } from "@/components/VariantTabs";
 import { Lightbox } from "@/components/Lightbox";
 import { ConcurrencyControl } from "@/components/ConcurrencyControl";
 import { SceneSelectModal } from "@/components/SceneSelectModal";
+import { SourceImageList } from "@/components/SourceImageList";
+import { toProcessExtra, useGenConfig } from "@/lib/genConfig";
 
 export default function SkuDetailPage() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
@@ -28,14 +30,10 @@ export default function SkuDetailPage() {
   const [sourceLightbox, setSourceLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const [extraPrompt, setExtraPrompt] = useState("");
-  const [extraNegativePrompt, setExtraNegativePrompt] = useState("");
-  const [extraWeight, setExtraWeight] = useState(0.5);
-  const [useTemplate, setUseTemplate] = useState(true);  // 本次生成是否用模板（local UI state，不持久化）
+  const [genConfig, dispatchGen] = useGenConfig();
   const [renamingSku, setRenamingSku] = useState(false);
   const [skuNameDraft, setSkuNameDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
-  const [selectedImgIds, setSelectedImgIds] = useState<Set<string>>(new Set());
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // 当 sku 加载后，默认激活第一个变体
@@ -71,17 +69,11 @@ export default function SkuDetailPage() {
           height_cm: args.dims.height,
         });
       }
-      const hasExtra = extraPrompt.trim() || extraNegativePrompt.trim() || !useTemplate;
-      const extra = hasExtra
-        ? {
-            prompt: extraPrompt.trim(),
-            weight: extraWeight,
-            negative: extraNegativePrompt.trim(),
-            disableScene: !useTemplate,
-          }
-        : undefined;
+      const extra = toProcessExtra(genConfig);
       if (args.ratios.length > 0) {
-        const imageIds = selectedImgIds.size > 0 ? Array.from(selectedImgIds) : undefined;
+        const imageIds = genConfig.selectedImgIds.size > 0
+          ? Array.from(genConfig.selectedImgIds)
+          : undefined;
         await api.processSku(pid, sid, args.ratios, activeVariant.id, extra, imageIds);
       }
       if (args.dimStyles.length > 0) {
@@ -303,93 +295,29 @@ export default function SkuDetailPage() {
                   className="hidden"
                 />
               </div>
-              {variantImages.length === 0 ? (
-                <p className="text-xs opacity-60">该变体还没上传原图 — 点右上"+ 添加"</p>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-2 text-[11px] flex-wrap">
-                    <button
-                      onClick={() => setSelectedImgIds(new Set(variantImages.map(i => i.id)))}
-                      className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
-                    >全选</button>
-                    <button
-                      onClick={() => setSelectedImgIds(new Set())}
-                      className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
-                    >清空</button>
-                    <span className="opacity-60">
-                      已选 {selectedImgIds.size}/{variantImages.length}
-                      {selectedImgIds.size === 0 && ' · 点击"▶ 生成"会处理全部'}
-                    </span>
-                  </div>
-                  <div className="space-y-2 max-h-[480px] overflow-y-auto">
-                    {variantImages.map(img => {
-                      const isSelected = selectedImgIds.has(img.id);
-                      return (
-                        <div key={img.id}
-                          className={`group bg-zinc-950 border rounded p-2 flex items-center gap-3 relative ${
-                            isSelected ? "border-blue-500" : "border-zinc-800"
-                          }`}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              const next = new Set(selectedImgIds);
-                              if (e.target.checked) next.add(img.id); else next.delete(img.id);
-                              setSelectedImgIds(next);
-                            }}
-                            className="w-4 h-4 accent-blue-500 cursor-pointer flex-shrink-0"
-                            title="勾选后只生成选中的"
-                          />
-                          {img.src_url ? (
-                            <img src={img.src_url} alt={img.name}
-                              onClick={() => setSourceLightbox({ src: img.src_url!, alt: img.name })}
-                              className="w-20 h-20 object-cover rounded flex-shrink-0 cursor-zoom-in hover:opacity-90 transition"
-                              title="点击查看大图" />
-                          ) : (
-                            <div className="w-20 h-20 bg-zinc-800 rounded flex-shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs truncate" title={img.name}>{img.name}</div>
-                            <div className="text-[10px] opacity-55 mt-1 flex items-center gap-1.5">
-                              <StatusPill status={img.status} />
-                            </div>
-                            {img.err_msg && (
-                              <div className="text-[10px] text-red-400 truncate mt-0.5" title={img.err_msg}>
-                                {img.err_msg}
-                              </div>
-                            )}
-                            {["cutting", "generating", "composing"].includes(img.status) && (
-                              <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
-                                <div className="h-full bg-amber-500 transition-all"
-                                  style={{ width: `${img.progress}%` }} />
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => onDeleteImage(img.id, img.name)}
-                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[11px] leading-none opacity-0 group-hover:opacity-100 hover:bg-red-500"
-                            title="删除该原图"
-                          >×</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+              <SourceImageList
+                images={variantImages}
+                selected={genConfig.selectedImgIds}
+                onToggleSelect={(id) => dispatchGen({ type: "toggle_img", id })}
+                onSelectAll={() => dispatchGen({ type: "select_all", ids: variantImages.map(i => i.id) })}
+                onClearSelection={() => dispatchGen({ type: "clear_selection" })}
+                onDelete={onDeleteImage}
+                onZoomSource={(img) => img.src_url && setSourceLightbox({ src: img.src_url, alt: img.name })}
+              />
             </div>
 
             {/* 2. 模板 + Prompt */}
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
               <PromptPreview
                 pid={pid} sid={sid} scene={scene}
-                extraPrompt={extraPrompt}
-                extraWeight={extraWeight}
-                extraNegativePrompt={extraNegativePrompt}
-                useTemplate={useTemplate}
-                onUseTemplateChange={setUseTemplate}
-                onExtraPromptChange={setExtraPrompt}
-                onExtraWeightChange={setExtraWeight}
-                onExtraNegativePromptChange={setExtraNegativePrompt}
+                extraPrompt={genConfig.extraPrompt}
+                extraWeight={genConfig.extraWeight}
+                extraNegativePrompt={genConfig.extraNegativePrompt}
+                useTemplate={genConfig.useTemplate}
+                onUseTemplateChange={(v) => dispatchGen({ type: "set_use_template", value: v })}
+                onExtraPromptChange={(v) => dispatchGen({ type: "set_prompt", value: v })}
+                onExtraWeightChange={(v) => dispatchGen({ type: "set_weight", value: v })}
+                onExtraNegativePromptChange={(v) => dispatchGen({ type: "set_negative", value: v })}
                 onSceneChanged={() => mutate()}
               />
             </div>

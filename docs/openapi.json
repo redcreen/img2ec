@@ -1,0 +1,3903 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "img2ec",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "operationId": "list_projects_api_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects Api Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create Project",
+        "operationId": "create_project_api_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Project",
+        "operationId": "get_project_api_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project",
+        "operationId": "delete_project_api_projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes": {
+      "get": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "List Scenes",
+        "operationId": "list_scenes_api_projects__project_id__scenes_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SceneOut"
+                  },
+                  "title": "Response List Scenes Api Projects  Project Id  Scenes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Create Scene",
+        "operationId": "create_scene_api_projects__project_id__scenes_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes/{scene_id}": {
+      "put": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Update Scene",
+        "operationId": "update_scene_api_projects__project_id__scenes__scene_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "scene_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Delete Scene",
+        "operationId": "delete_scene_api_projects__project_id__scenes__scene_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "scene_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes/import-defaults": {
+      "post": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Import Default Scenes",
+        "description": "导入默认模板（重名跳过）。代表图通过 ref_image_path = 'scene_covers/<file>' 注入。",
+        "operationId": "import_default_scenes_api_projects__project_id__scenes_import_defaults_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SceneOut"
+                  },
+                  "title": "Response Import Default Scenes Api Projects  Project Id  Scenes Import Defaults Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes-ai/expand-from-keywords": {
+      "post": {
+        "tags": [
+          "scenes-ai"
+        ],
+        "summary": "Expand From Keywords",
+        "operationId": "expand_from_keywords_api_projects__project_id__scenes_ai_expand_from_keywords_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordsExpandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes-ai/batch-generate": {
+      "post": {
+        "tags": [
+          "scenes-ai"
+        ],
+        "summary": "Batch Generate",
+        "description": "批量生成 N 个该节庆下的模板。立即返回占位 Scene，后台并发填充。",
+        "operationId": "batch_generate_api_projects__project_id__scenes_ai_batch_generate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Batch Generate Api Projects  Project Id  Scenes Ai Batch Generate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes-ai/queue-from-keywords": {
+      "post": {
+        "tags": [
+          "scenes-ai"
+        ],
+        "summary": "Queue From Keywords",
+        "description": "Fire-and-forget 关键词模板生成。立即返回占位 Scene id，后台填充。",
+        "operationId": "queue_from_keywords_api_projects__project_id__scenes_ai_queue_from_keywords_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueKeywordsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Queue From Keywords Api Projects  Project Id  Scenes Ai Queue From Keywords Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/scenes-ai/expand-from-reference": {
+      "post": {
+        "tags": [
+          "scenes-ai"
+        ],
+        "summary": "Expand From Reference",
+        "operationId": "expand_from_reference_api_projects__project_id__scenes_ai_expand_from_reference_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_expand_from_reference_api_projects__project_id__scenes_ai_expand_from_reference_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus": {
+      "get": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "List Skus",
+        "operationId": "list_skus_api_projects__project_id__skus_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SKUOut"
+                  },
+                  "title": "Response List Skus Api Projects  Project Id  Skus Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Create Sku",
+        "operationId": "create_sku_api_projects__project_id__skus_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SKUCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}": {
+      "get": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Get Sku",
+        "operationId": "get_sku_api_projects__project_id__skus__sku_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete Sku",
+        "operationId": "delete_sku_api_projects__project_id__skus__sku_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Patch Sku",
+        "description": "更新 SKU 字段：name / scene_id / clear_scene。",
+        "operationId": "patch_sku_api_projects__project_id__skus__sku_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkuPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/images": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Upload Image",
+        "operationId": "upload_image_api_projects__project_id__skus__sku_id__images_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_api_projects__project_id__skus__sku_id__images_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}": {
+      "delete": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete Image",
+        "operationId": "delete_image_api_projects__project_id__skus__sku_id__images__image_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Patch Image",
+        "description": "改单图的 scene_id（per-image 模板覆盖）。",
+        "operationId": "patch_image_api_projects__project_id__skus__sku_id__images__image_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImagePatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/preview-prompt": {
+      "get": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Preview Prompt",
+        "description": "返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。\ndisable_scene=true → 模拟\"启用模板\"关闭：preview 与实际 codex 提交完全一致。",
+        "operationId": "preview_prompt_api_projects__project_id__skus__sku_id__preview_prompt_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "extra_prompt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Extra Prompt"
+            }
+          },
+          {
+            "name": "extra_weight",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Extra Weight"
+            }
+          },
+          {
+            "name": "extra_negative_prompt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Extra Negative Prompt"
+            }
+          },
+          {
+            "name": "disable_scene",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Disable Scene"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Preview Prompt Api Projects  Project Id  Skus  Sku Id  Preview Prompt Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/process": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Process Sku",
+        "description": "触发生成。\n- image_ids 指定：只处理这些图（跨 variant）\n- 否则按 variant_id 处理（None = 所有 variant）\n- ratios：未指定即全部 8 种规格",
+        "operationId": "process_sku_api_projects__project_id__skus__sku_id__process_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ProcessRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Process Sku Api Projects  Project Id  Skus  Sku Id  Process Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/cancel": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Cancel Sku",
+        "description": "请求停止处理。Pipeline 会在下一个 master 完成后检测到并 bail；已生成的 master 保留。",
+        "operationId": "cancel_sku_api_projects__project_id__skus__sku_id__cancel_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Cancel Sku Api Projects  Project Id  Skus  Sku Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/master-versions/delete": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete Master Version",
+        "description": "删除某张 master 图的一个版本。如删的是 primary，下一个版本自动升 primary。",
+        "operationId": "delete_master_version_api_projects__project_id__skus__sku_id__master_versions_delete_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteMasterVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Master Version Api Projects  Project Id  Skus  Sku Id  Master Versions Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/detail/compose": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Compose Detail Page",
+        "description": "用用户选定的 image_keys 顺序重渲 3 平台详情页。\n\n第一个 image_key 作为 hero（建议 1x1）；其余按顺序作为 full_image 或 size_diagram module。\n标题/卖点段始终保留（来自 PlatformOutputCopy）。",
+        "operationId": "compose_detail_page_api_projects__project_id__skus__sku_id__detail_compose_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetailComposeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/dimension/apply-to-detail": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Apply Dimension To Detail",
+        "description": "把指定 style 的尺寸图作为 module 加入详情页底部并重渲 3 平台详情页。",
+        "operationId": "apply_dimension_to_detail_api_projects__project_id__skus__sku_id__dimension_apply_to_detail_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ApplyDimensionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/dimensions": {
+      "patch": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Update Dimensions",
+        "description": "更新 SKU 物理尺寸（cm）。三项可分别为空。改尺寸后前端可单独触发 regenerate。",
+        "operationId": "update_dimensions_api_projects__project_id__skus__sku_id__dimensions_patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SKUDimensions"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/regenerate": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Regenerate Single Image",
+        "description": "重新生成某张原图的全部规格（默认 8 比例，可指定 ratios 子集）。\n跳过该图当前 in-flight 状态（避免重复入队）。",
+        "operationId": "regenerate_single_image_api_projects__project_id__skus__sku_id__images__image_id__regenerate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegenerateImageRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Regenerate Single Image Api Projects  Project Id  Skus  Sku Id  Images  Image Id  Regenerate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/delete-all-masters": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete All Masters For Image",
+        "description": "删除该原图下所有 master 版本（含历史 + primary）。物理文件 + DB 一并清。",
+        "operationId": "delete_all_masters_for_image_api_projects__project_id__skus__sku_id__images__image_id__delete_all_masters_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/dimension/delete-all": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete All Dimension",
+        "description": "删除该变体（缺省 default）下所有尺寸图文件 + Redis 状态。",
+        "operationId": "delete_all_dimension_api_projects__project_id__skus__sku_id__dimension_delete_all_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/dimension/delete": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Delete Dimension Image",
+        "description": "删除某张尺寸图（单张 = style × image_idx）。物理文件 + 状态都清。",
+        "operationId": "delete_dimension_image_api_projects__project_id__skus__sku_id__dimension_delete_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DimensionDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Dimension Image Api Projects  Project Id  Skus  Sku Id  Dimension Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/dimension/regenerate": {
+      "post": {
+        "tags": [
+          "skus"
+        ],
+        "summary": "Regenerate Dimension Diagram",
+        "description": "异步为指定变体（缺省 default）生成尺寸图。",
+        "operationId": "regenerate_dimension_diagram_api_projects__project_id__skus__sku_id__dimension_regenerate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DimensionRegenerateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SKUOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/variants": {
+      "post": {
+        "tags": [
+          "variants"
+        ],
+        "summary": "Create Variant",
+        "operationId": "create_variant_api_projects__project_id__skus__sku_id__variants_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Variant Api Projects  Project Id  Skus  Sku Id  Variants Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}": {
+      "patch": {
+        "tags": [
+          "variants"
+        ],
+        "summary": "Update Variant",
+        "operationId": "update_variant_api_projects__project_id__skus__sku_id__variants__variant_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Variant Api Projects  Project Id  Skus  Sku Id  Variants  Variant Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "variants"
+        ],
+        "summary": "Delete Variant",
+        "operationId": "delete_variant_api_projects__project_id__skus__sku_id__variants__variant_id__delete",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/thumbnail": {
+      "post": {
+        "tags": [
+          "variants"
+        ],
+        "summary": "Set Variant Thumbnail",
+        "description": "Set 该变体的 SKU 色卡列表（多候选，list[0] 为主色卡）。\n传 image_keys=[] 或 image_key=None 清空。",
+        "operationId": "set_variant_thumbnail_api_projects__project_id__skus__sku_id__variants__variant_id__thumbnail_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantThumbnail"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Set Variant Thumbnail Api Projects  Project Id  Skus  Sku Id  Variants  Variant Id  Thumbnail Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/download-bundle": {
+      "post": {
+        "tags": [
+          "outputs"
+        ],
+        "summary": "Download Bundle",
+        "description": "打包用户选定的资料：主图/ + SKU图/ + 详情图/ + 文案.txt",
+        "operationId": "download_bundle_api_projects__project_id__skus__sku_id__download_bundle_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/skus/{sku_id}/download-bundle-all": {
+      "post": {
+        "tags": [
+          "outputs"
+        ],
+        "summary": "Download Bundle All",
+        "description": "打包用户当前变体的全平台资料。结构：\n主图/        ← 跨平台共用（cur.main）\nSKU图/       ← 跨平台共用（variant.sku_thumb_paths）\n<平台>/详情图/detail-template.jpg\n<平台>/文案.txt\nREADME.txt",
+        "operationId": "download_bundle_all_api_projects__project_id__skus__sku_id__download_bundle_all_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundleAllRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skus/{sku_id}/download": {
+      "get": {
+        "tags": [
+          "outputs"
+        ],
+        "summary": "Download Sku Zip",
+        "operationId": "download_sku_zip_api_skus__sku_id__download_get",
+        "parameters": [
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/download-all": {
+      "get": {
+        "tags": [
+          "outputs"
+        ],
+        "summary": "Download Project Zip",
+        "description": "打包所有 done 状态 SKU 的 outputs/，每个 SKU 一个目录。",
+        "operationId": "download_project_zip_api_projects__project_id__download_all_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fs/reveal": {
+      "post": {
+        "tags": [
+          "fs"
+        ],
+        "summary": "Reveal",
+        "operationId": "reveal_api_fs_reveal_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skus/{sku_id}/copy": {
+      "get": {
+        "tags": [
+          "copy"
+        ],
+        "summary": "List Copy",
+        "operationId": "list_copy_api_skus__sku_id__copy_get",
+        "parameters": [
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CopyOut"
+                  },
+                  "title": "Response List Copy Api Skus  Sku Id  Copy Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skus/{sku_id}/copy/regenerate": {
+      "post": {
+        "tags": [
+          "copy"
+        ],
+        "summary": "Regenerate",
+        "operationId": "regenerate_api_skus__sku_id__copy_regenerate_post",
+        "parameters": [
+          {
+            "name": "sku_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sku Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CopyOut"
+                  },
+                  "title": "Response Regenerate Api Skus  Sku Id  Copy Regenerate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/concurrency": {
+      "get": {
+        "tags": [
+          "concurrency"
+        ],
+        "summary": "Get Concurrency",
+        "operationId": "get_concurrency_api_concurrency_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Concurrency Api Concurrency Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "concurrency"
+        ],
+        "summary": "Set Concurrency",
+        "operationId": "set_concurrency_api_concurrency_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetConcurrencyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Set Concurrency Api Concurrency Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Api Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AIPreview": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "negative_prompt": {
+            "type": "string",
+            "title": "Negative Prompt"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival"
+          },
+          "cover_path": {
+            "type": "string",
+            "title": "Cover Path"
+          },
+          "cover_url": {
+            "type": "string",
+            "title": "Cover Url"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "desc",
+          "prompt",
+          "negative_prompt",
+          "festival",
+          "cover_path",
+          "cover_url"
+        ],
+        "title": "AIPreview"
+      },
+      "ApplyDimensionRequest": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "default": "white"
+          }
+        },
+        "type": "object",
+        "title": "ApplyDimensionRequest"
+      },
+      "BatchGenerateRequest": {
+        "properties": {
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "count": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "title": "BatchGenerateRequest"
+      },
+      "Body_expand_from_reference_api_projects__project_id__scenes_ai_expand_from_reference_post": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Reference"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "default": "新中式"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference"
+        ],
+        "title": "Body_expand_from_reference_api_projects__project_id__scenes_ai_expand_from_reference_post"
+      },
+      "Body_upload_image_api_projects__project_id__skus__sku_id__images_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_image_api_projects__project_id__skus__sku_id__images_post"
+      },
+      "BundleAllRequest": {
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "main_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Main Keys",
+            "default": []
+          },
+          "detail_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Detail Keys",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant_id"
+        ],
+        "title": "BundleAllRequest"
+      },
+      "BundleRequest": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "main_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Main Keys",
+            "default": []
+          },
+          "detail_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Detail Keys",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "variant_id"
+        ],
+        "title": "BundleRequest"
+      },
+      "CopyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "title": "Subtitle"
+          },
+          "selling_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Selling Points"
+          },
+          "description_md": {
+            "type": "string",
+            "title": "Description Md"
+          },
+          "category_path": {
+            "type": "string",
+            "title": "Category Path"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          },
+          "hashtags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hashtags"
+          },
+          "video_script": {
+            "type": "string",
+            "title": "Video Script",
+            "default": ""
+          },
+          "detail_template_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail Template Url"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "title",
+          "subtitle",
+          "selling_points",
+          "description_md",
+          "category_path",
+          "keywords",
+          "hashtags",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CopyOut"
+      },
+      "DeleteMasterVersionRequest": {
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "title": "Image Id"
+          },
+          "ratio": {
+            "type": "string",
+            "title": "Ratio"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image_id",
+          "ratio",
+          "path"
+        ],
+        "title": "DeleteMasterVersionRequest"
+      },
+      "DetailComposeRequest": {
+        "properties": {
+          "image_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Image Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image_keys"
+        ],
+        "title": "DetailComposeRequest"
+      },
+      "DimensionDeleteRequest": {
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "style": {
+            "type": "string",
+            "title": "Style"
+          },
+          "image_idx": {
+            "type": "integer",
+            "title": "Image Idx"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant_id",
+          "style",
+          "image_idx"
+        ],
+        "title": "DimensionDeleteRequest"
+      },
+      "DimensionRegenerateRequest": {
+        "properties": {
+          "styles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Styles",
+            "default": [
+              "white"
+            ]
+          },
+          "image_indices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Indices"
+          }
+        },
+        "type": "object",
+        "title": "DimensionRegenerateRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImagePatchRequest": {
+        "properties": {
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          }
+        },
+        "type": "object",
+        "title": "ImagePatchRequest"
+      },
+      "KeywordsExpandRequest": {
+        "properties": {
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Keywords"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "default": "新中式"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keywords"
+        ],
+        "title": "KeywordsExpandRequest"
+      },
+      "ProcessRequest": {
+        "properties": {
+          "ratios": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratios"
+          },
+          "extra_prompt": {
+            "type": "string",
+            "title": "Extra Prompt",
+            "default": ""
+          },
+          "extra_negative_prompt": {
+            "type": "string",
+            "title": "Extra Negative Prompt",
+            "default": ""
+          },
+          "extra_weight": {
+            "type": "number",
+            "title": "Extra Weight",
+            "default": 0.0
+          },
+          "image_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Ids"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "default": false
+          },
+          "disable_scene": {
+            "type": "boolean",
+            "title": "Disable Scene",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ProcessRequest"
+      },
+      "ProjectCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc",
+            "default": ""
+          },
+          "copy_default_scenes": {
+            "type": "boolean",
+            "title": "Copy Default Scenes",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreate"
+      },
+      "ProjectOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path"
+          },
+          "sku_count": {
+            "type": "integer",
+            "title": "Sku Count"
+          },
+          "scene_count": {
+            "type": "integer",
+            "title": "Scene Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "desc",
+          "root_path",
+          "sku_count",
+          "scene_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectOut"
+      },
+      "QueueKeywordsRequest": {
+        "properties": {
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Keywords"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "default": "新中式"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keywords"
+        ],
+        "title": "QueueKeywordsRequest"
+      },
+      "RegenerateImageRequest": {
+        "properties": {
+          "ratios": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratios"
+          },
+          "extra_prompt": {
+            "type": "string",
+            "title": "Extra Prompt",
+            "default": ""
+          },
+          "extra_negative_prompt": {
+            "type": "string",
+            "title": "Extra Negative Prompt",
+            "default": ""
+          },
+          "extra_weight": {
+            "type": "number",
+            "title": "Extra Weight",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "RegenerateImageRequest"
+      },
+      "RevealReq": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "RevealReq"
+      },
+      "SKUCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SKUCreate"
+      },
+      "SKUDimensions": {
+        "properties": {
+          "length_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Cm"
+          },
+          "width_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          }
+        },
+        "type": "object",
+        "title": "SKUDimensions"
+      },
+      "SKUOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "length_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Cm"
+          },
+          "width_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Cm"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/VariantOut"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/SourceImageOut"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "dimension_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Dimension Urls"
+          },
+          "dimension_states": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Dimension States"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "scene_id",
+          "name",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SKUOut"
+      },
+      "SceneCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": "自定义"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc",
+            "default": ""
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Prompt"
+          },
+          "negative_prompt": {
+            "type": "string",
+            "title": "Negative Prompt",
+            "default": ""
+          },
+          "ip_adapter_weight": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Ip Adapter Weight",
+            "default": 60
+          },
+          "base_model": {
+            "type": "string",
+            "title": "Base Model",
+            "default": "flux-dev-fp8"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "user"
+          },
+          "cover_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "prompt"
+        ],
+        "title": "SceneCreate"
+      },
+      "SceneOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "negative_prompt": {
+            "type": "string",
+            "title": "Negative Prompt"
+          },
+          "ip_adapter_weight": {
+            "type": "integer",
+            "title": "Ip Adapter Weight"
+          },
+          "base_model": {
+            "type": "string",
+            "title": "Base Model"
+          },
+          "festival": {
+            "type": "string",
+            "title": "Festival",
+            "default": "通用"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "user"
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "category",
+          "desc",
+          "prompt",
+          "negative_prompt",
+          "ip_adapter_weight",
+          "base_model",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SceneOut"
+      },
+      "SetConcurrencyRequest": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "SetConcurrencyRequest"
+      },
+      "SkuPatchRequest": {
+        "properties": {
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "clear_scene": {
+            "type": "boolean",
+            "title": "Clear Scene",
+            "default": false
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "title": "SkuPatchRequest"
+      },
+      "SourceImageOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "src_path": {
+            "type": "string",
+            "title": "Src Path"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "progress": {
+            "type": "integer",
+            "title": "Progress"
+          },
+          "err_msg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Err Msg"
+          },
+          "master_paths": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Master Paths"
+          },
+          "master_history": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Master History"
+          },
+          "derived_paths": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Derived Paths"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "src_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Src Url"
+          },
+          "master_urls": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Master Urls"
+          },
+          "master_history_urls": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Master History Urls"
+          },
+          "derived_urls": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Derived Urls"
+          },
+          "pending_ratios": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pending Ratios"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "src_path",
+          "status",
+          "progress",
+          "err_msg",
+          "master_paths",
+          "derived_paths"
+        ],
+        "title": "SourceImageOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VariantCreate": {
+        "properties": {
+          "color_name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Color Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "color_name"
+        ],
+        "title": "VariantCreate"
+      },
+      "VariantOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "color_name": {
+            "type": "string",
+            "title": "Color Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "sku_thumb_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku Thumb Path"
+          },
+          "sku_thumb_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku Thumb Url"
+          },
+          "sku_thumb_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sku Thumb Paths"
+          },
+          "sku_thumb_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sku Thumb Urls"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/SourceImageOut"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "dimension_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Dimension Urls"
+          },
+          "dimension_states": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Dimension States"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "color_name",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VariantOut"
+      },
+      "VariantThumbnail": {
+        "properties": {
+          "image_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Keys"
+          },
+          "image_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Key"
+          }
+        },
+        "type": "object",
+        "title": "VariantThumbnail",
+        "description": "SKU 选图来源。image_keys 是有序列表（第一个 = 主色卡）。\n每个 key 形如 'img<idx>:<ratio>' 或 'size_white' / 'size_template'。\n支持单值字段 image_key 作为兼容（=单元素列表）。"
+      },
+      "VariantUpdate": {
+        "properties": {
+          "color_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Name"
+          }
+        },
+        "type": "object",
+        "title": "VariantUpdate"
+      }
+    }
+  }
+}

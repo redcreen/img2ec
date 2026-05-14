@@ -1,45 +1,42 @@
-"""Codex CLI image generation backend.
-
-Replaces ComfyUI Flux for scene background generation. Significantly higher quality
-(real marble texture, real caustics) at similar latency (~30-60s/image).
+"""Codex CLI image generation business layer.
 
 Architecture:
-- Delegates to the codex-imagen skill (in-process import of gen.py)
-- gen.py manages its own isolated CODEX_HOME (tempdir + auth.json symlink)
-- Cost: charges against user's ChatGPT/OpenAI Codex subscription
+- codex_adapter.py: thin wrapper around codex-imagen skill (mockable)
+- prompt_builder.py: pure prompt composition (pytest-friendly)
+- this file: orchestration — pick output path, call adapter, retry on refusal,
+  resize/save, closeup PIL crop, size-diagram, etc.
 """
 from __future__ import annotations
 
-import subprocess
 import tempfile
 from pathlib import Path
 
 from PIL import Image
 
-import sys as _sys
+from img2ec.infra.codex_adapter import AdapterError, generate_image
+from img2ec.infra.prompt_builder import (
+    CLOSEUP_KEYS,
+    PROMPT_SIZE_HINT,
+    TARGET_DIMENSIONS,
+    build_master_prompt,
+)
 
-_SKILL_SCRIPTS = Path.home() / ".codex/skills/codex-imagen/scripts"
-if not (_SKILL_SCRIPTS / "gen.py").is_file():
-    raise RuntimeError(
-        "codex-imagen skill not installed at ~/.codex/skills/codex-imagen/. "
-        "Install via the codex-imagen project's scripts/install.sh."
-    )
-if str(_SKILL_SCRIPTS) not in _sys.path:
-    _sys.path.insert(0, str(_SKILL_SCRIPTS))
 
-import gen as _codex_imagen  # type: ignore
+# 兼容旧代码引用
+__all__ = [
+    "CodexImageError", "CLOSEUP_KEYS", "PROMPT_SIZE_HINT", "TARGET_DIMENSIONS",
+    "build_master_prompt", "codex_text", "generate_background_image",
+    "generate_closeup_crop", "generate_master_from_input", "generate_size_diagram",
+]
 
 
 class CodexImageError(RuntimeError):
+    """业务层统一错误（向后兼容名）。"""
     pass
 
 
 def _fit_to_target(img: Image.Image, target: tuple[int, int]) -> Image.Image:
-    """Center-crop image to target aspect ratio, then resize.
-
-    Preserves the商品 aspect — never stretches/squishes. Drops some pixels at
-    the edges if input aspect doesn't match target.
-    """
+    """Center-crop 到 target 比例，再 resize。保证不拉伸/挤压商品。"""
     target_w, target_h = target
     src_w, src_h = img.size
     target_ratio = target_w / target_h
@@ -47,48 +44,14 @@ def _fit_to_target(img: Image.Image, target: tuple[int, int]) -> Image.Image:
     if abs(src_ratio - target_ratio) < 0.01:
         return img.resize(target, Image.LANCZOS)
     if src_ratio > target_ratio:
-        # source 太宽，裁两边
         new_w = int(src_h * target_ratio)
         left = (src_w - new_w) // 2
         cropped = img.crop((left, 0, left + new_w, src_h))
     else:
-        # source 太高，裁上下
         new_h = int(src_w / target_ratio)
         top = (src_h - new_h) // 2
         cropped = img.crop((0, top, src_w, top + new_h))
     return cropped.resize(target, Image.LANCZOS)
-
-
-# Codex/gpt-image-1 supported native sizes — we ask in these so output isn't squished.
-_PROMPT_SIZE_HINT: dict[str, str] = {
-    # 比例图（带场景）
-    "1x1":  "1024x1024",
-    "long": "1024x1536",
-    "3x4":  "1024x1536",
-    "9x16": "1024x1792",
-    "16x9": "1792x1024",
-    # 特写图（白底，多角度）
-    "front":  "1024x1024",
-    "side":   "1024x1024",
-    "detail": "1024x1024",
-}
-
-TARGET_DIMENSIONS: dict[str, tuple[int, int]] = {
-    "1x1":  (1024, 1024),
-    "long": (1024, 1536),
-    "3x4":  (1024, 1536),
-    "9x16": (1024, 1792),
-    "16x9": (1792, 1024),
-    "front":  (1024, 1024),
-    "side":   (1024, 1024),
-    "detail": (1024, 1024),
-}
-
-# 特写图（角度图）：白底，无场景，对商品做不同视角。共用 build_master_prompt。
-CLOSEUP_KEYS = {"front", "side", "detail"}
-
-
-_REFUSAL_HINTS = ("refused to invoke", "image_generation", "No PNG produced", "directory does not exist")
 
 
 def _run_codex_to_image(
@@ -98,31 +61,22 @@ def _run_codex_to_image(
     target_dims: tuple[int, int],
     output_path: Path,
     timeout: int,
-    codex_bin: str = "codex",  # kept for API stability; ignored — gen.py always uses "codex"
+    codex_bin: str = "codex",  # legacy, ignored
     max_retries: int = 2,
 ) -> Path:
-    """Run codex exec via the codex-imagen in-process API; on stochastic refusal
-    (agent didn't call image_generation tool), automatically retry up to max_retries
-    extra times (total = 1 + max_retries attempts). Then center-crop/resize and save."""
+    """Run codex via adapter, retry on stochastic refusal, save as JPEG."""
     refs = [input_image] if input_image is not None else None
     last_err: Exception | None = None
     for attempt in range(max_retries + 1):
         with tempfile.TemporaryDirectory(prefix="img2ec-codex-stage-") as td:
             raw_png = Path(td) / "raw.png"
             try:
-                _codex_imagen.generate(
-                    full_prompt,
-                    raw_png,
-                    refs=refs,
-                    timeout_sec=timeout,
-                )
-            except _codex_imagen.GenError as e:
-                msg = str(e)
+                generate_image(full_prompt, raw_png, refs=refs, timeout_sec=timeout)
+            except AdapterError as e:
                 last_err = e
-                # 仅对"模型拒绝调工具/没产图"类失败重试；真超时 / auth 错 / etc 不重试
-                if any(h in msg for h in _REFUSAL_HINTS) and attempt < max_retries:
+                if e.refusal and attempt < max_retries:
                     continue
-                raise CodexImageError(msg) from e
+                raise CodexImageError(str(e)) from e
 
             with Image.open(raw_png) as src:
                 rgb = src.convert("RGB")
@@ -130,13 +84,42 @@ def _run_codex_to_image(
                     rgb = _fit_to_target(rgb, target_dims)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 rgb.save(output_path, "JPEG", quality=92)
-            # 保证文件真的落盘了再返回
             if not output_path.exists() or output_path.stat().st_size == 0:
                 raise CodexImageError(f"output file missing or empty after save: {output_path}")
             return output_path
 
-    # 理论上不会到这（前面要么 return，要么 raise）；保底
     raise CodexImageError(str(last_err) if last_err else "unknown codex error")
+
+
+def codex_text(
+    *,
+    prompt: str,
+    input_image: Path | None = None,
+    timeout: int = 90,
+    codex_bin: str = "codex",  # legacy
+) -> str:
+    """Run codex exec for text output (vision describe / JSON extract).
+
+    与 image gen 复用 codex CLI 但不要图。直接走 subprocess（短任务，不必走 adapter）。
+    """
+    import os
+    import subprocess
+    cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
+    if input_image is not None:
+        cmd.extend(["-i", str(input_image)])
+    try:
+        proc = subprocess.run(
+            cmd, input=prompt.encode("utf-8"),
+            capture_output=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise CodexImageError(f"codex exec timed out after {timeout}s") from e
+    except FileNotFoundError as e:
+        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
+        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
+    return proc.stdout.decode("utf-8", errors="replace")
 
 
 def generate_background_image(
@@ -147,15 +130,11 @@ def generate_background_image(
     timeout: int = 600,
     codex_bin: str = "codex",
 ) -> Path:
-    """Generate a scene-only background image (商品 to be PIL-composited later).
-
-    [Path A composite mode — fallback only. Path C 'codex_native' direct img2img is preferred.]
-    """
-    size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
+    """Path A fallback: 无产品的场景背景图（用于后续 PIL composite）。"""
+    size_hint = PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
     if target_dims is None:
         raise CodexImageError(f"unknown ratio_key: {ratio_key}")
-
     full_prompt = (
         f"Generate a single photographic image at {size_hint} resolution. "
         f"Subject: {prompt} "
@@ -173,14 +152,13 @@ def generate_background_image(
 
 
 def _source_to_white_bg(source_image: Path, cache_path: Path | None = None) -> Image.Image:
-    """rembg 去背景 → 白底合成。cache_path 提供时会缓存结果（首次慢 ~2s，后续命中即时）。"""
+    """rembg 抠图 → 白底合成。cache_path 命中则即时返回。"""
     if cache_path and cache_path.exists():
         with Image.open(cache_path) as im:
             return im.convert("RGB").copy()
     from rembg import remove
     with Image.open(source_image) as src:
-        rgba = remove(src.convert("RGBA"))  # 抠图，返回 RGBA
-    # 白底合成
+        rgba = remove(src.convert("RGBA"))
     bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
     composed = Image.alpha_composite(bg, rgba).convert("RGB")
     if cache_path:
@@ -196,13 +174,7 @@ def generate_closeup_crop(
     output_path: Path,
     cutout_cache: Path | None = None,
 ) -> Path:
-    """特写图 = 抠图去背景 → 白底合成 → 局部 crop + 放大。**不走 Codex**（不改产品内容）。
-    - front:  中央 70% 方形区
-    - side:   中央偏右 60% 方形区
-    - detail: 中央 35% 紧凑放大
-    cutout_cache：可选 — 命中的白底 jpg 路径（让多张特写共享一次 rembg 抠图，省 ~2s × 2）
-    输出 1024x1024 JPEG。
-    """
+    """特写图 = 抠图去背景 → 白底 → 局部 crop + 放大。不调 Codex。"""
     if ratio_key not in CLOSEUP_KEYS:
         raise CodexImageError(f"not a closeup key: {ratio_key}")
     configs = {
@@ -237,21 +209,10 @@ def generate_master_from_input(
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
 ) -> Path:
-    """Path C — Codex 直接 image-to-image：商品 + 场景一步出图。
-
-    输入用户原图（含杂背景），Codex 自己识别商品，把它放到 scene_prompt 描述的新场景里，
-    保留商品所有细节同时生成自然光照、阴影、表面接触感。**不需要 rembg，不需要 PIL composite**。
-
-    Args:
-        source_image: 用户上传的原图（任意背景）
-        scene_prompt: 目标场景描述（如 "中式实木桌面"）
-        ratio_key: 1x1 / long / 3x4 / 9x16 / 16x9
-        output_path: 输出 master 文件路径
-    """
+    """Path C — image-to-image：商品 + 场景一步出图。"""
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
     if target_dims is None:
         raise CodexImageError(f"unknown ratio_key: {ratio_key}")
-
     full_prompt = build_master_prompt(
         scene_prompt=scene_prompt, ratio_key=ratio_key,
         extra_prompt=extra_prompt, extra_weight=extra_weight,
@@ -267,6 +228,16 @@ def generate_master_from_input(
     )
 
 
+def _fmt_cm(v: float) -> str:
+    """123.45 → '12.3 cm' (1 dp); 整数则不带小数。"""
+    if abs(v - round(v)) < 0.05:
+        return f"{int(round(v))} cm"
+    return f"{v:.1f} cm"
+
+
+DIMENSION_STYLES = ("white", "template")
+
+
 def generate_size_diagram(
     *,
     source_image: Path,
@@ -274,196 +245,44 @@ def generate_size_diagram(
     width_cm: float,
     height_cm: float,
     output_path: Path,
-    style: str = "white",  # "white" 纯白底；"template" 用 scene_prompt 描述的场景做背景
+    style: str = "white",
     scene_prompt: str | None = None,
     timeout: int = 600,
     codex_bin: str = "codex",
 ) -> Path:
-    """Codex 直接生成尺寸示意图：商品本体 + 双向箭头标尺 + 中文尺寸标注。
+    """Codex 直接生成尺寸示意图：商品 + 标注。"""
+    if style not in DIMENSION_STYLES:
+        raise CodexImageError(f"unknown style: {style}")
+    target_dims = TARGET_DIMENSIONS["1x1"]
+    L = _fmt_cm(length_cm); W = _fmt_cm(width_cm); H = _fmt_cm(height_cm)
 
-    style="white"：纯白底（电商规格图标准）
-    style="template"：用 scene_prompt 描述的场景做背景（与 SKU 主图风格一致）
-    """
     if style == "template" and scene_prompt:
-        bg_clause = (
+        bg = (
             f"(1) background scene: {scene_prompt}. The product sits naturally on a believable surface "
-            f"in this scene, with matched lighting and natural contact shadow"
+            f"with soft contact shadow."
         )
     else:
-        bg_clause = (
-            "(1) clean pure-white (#FFFFFF) background, NO scene, NO surface, NO context, only a soft "
-            "natural contact shadow under the product (10-15% opacity gray)"
-        )
+        bg = "(1) pure white (#FFFFFF) studio background, soft even studio lighting, subtle contact shadow."
 
     full_prompt = (
-        f"Generate a single 1024x1024 e-commerce product size-specification diagram. "
-        f"Use the input photo as the reference for the product's exact appearance — preserve "
-        f"every shape, color, pattern and texture detail of the product itself. "
-        f"\n\nLayout requirements: "
-        f"{bg_clause}; "
-        f"(2) the product is centered, occupying ~60% of frame width, fully visible with margin around it; "
-        f"(3) below the product, draw a horizontal black double-headed arrow that spans the product's "
-        f"width only (NOT the full canvas), with the label \"长 {_fmt_cm(length_cm)} cm\" centered "
-        f"below it (large bold sans-serif Chinese font); "
-        f"(4) to the right of the product, draw a vertical black double-headed arrow that spans the "
-        f"product's height only (NOT the full canvas), with the label \"高 {_fmt_cm(height_cm)} cm\" "
-        f"placed to the right of the arrow (rotated 90° if needed); "
-        f"(5) in the bottom-right corner, smaller gray text \"宽 {_fmt_cm(width_cm)} cm（深度）\" "
-        f"indicating depth; "
-        f"(6) the arrows must measure the PRODUCT itself, not the full image frame — start and end "
-        f"exactly at the product's left/right or top/bottom edges; "
-        f"(7) absolutely NO additional product duplicates, NO logos, NO watermark, NO additional text "
-        f"besides the dimension labels; "
-        f"(8) the visual style must look like a professional Chinese e-commerce product specification "
-        f"sheet — sharp lines, accurate measurements; the dimension annotation overlay is on top of the "
-        f"chosen background."
+        f"Generate a single 1024x1024 e-commerce size diagram image. "
+        f"Use the input image as the exact reference for the product — preserve every detail. "
+        f"{bg} "
+        f"(2) the product is centered, occupying ~60% of the frame, with clear sharp focus; "
+        f"(3) overlay clean black double-arrow rulers on three sides of the product: "
+        f"length (左右) = {L}, width (前后/深度) = {W}, height (上下) = {H}; "
+        f"(4) Chinese labels in clean sans-serif font, positioned just outside each arrow: "
+        f"长 {L} | 宽 {W} | 高 {H}; "
+        f"(5) the product itself must look visually identical to the input photo "
+        f"(same colors / pattern / material / orientation); "
+        f"(6) NO watermark, NO extra products, NO unrelated text; "
+        f"(7) output a single high-resolution 1024x1024 photograph."
     )
     return _run_codex_to_image(
         full_prompt=full_prompt,
         input_image=source_image,
-        target_dims=(1024, 1024),
+        target_dims=target_dims,
         output_path=output_path,
         timeout=timeout,
         codex_bin=codex_bin,
     )
-
-
-def _fmt_cm(v: float) -> str:
-    """整数显示无小数点；非整数保留 1 位小数。"""
-    if v == int(v):
-        return str(int(v))
-    return f"{v:.1f}"
-
-
-_CLOSEUP_DIRECTIVE: dict[str, str] = {
-    "front": (
-        "Capture the product straight-on from the FRONT view, head-on perspective, no rotation, "
-        "the most recognizable face of the product directly facing the camera"
-    ),
-    "side": (
-        "Capture the product from the SIDE view (rotated 90° from front), profile angle showing the "
-        "depth and side silhouette of the product"
-    ),
-    "detail": (
-        "Macro close-up shot — zoom in tight on the most distinctive textured area of the product "
-        "(embroidery / fabric weave / pattern / craftsmanship detail). Fill the frame with the texture, "
-        "showing fine surface detail and material quality"
-    ),
-}
-
-
-def build_master_prompt(
-    *,
-    scene_prompt: str,
-    ratio_key: str,
-    extra_prompt: str = "",
-    extra_weight: float = 0.0,
-    extra_negative_prompt: str = "",
-) -> str:
-    """组装传给 Codex 的完整 prompt。
-
-    - scene_prompt 为空 → 纯人工模式，extra_prompt 当场景描述用
-    - extra_prompt / extra_weight：附加诉求 + 权重
-    - extra_negative_prompt：用户排除项
-    """
-    size_hint = _PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
-    suffix = _format_extra(extra_prompt, extra_weight)
-    neg_suffix = _format_negative(extra_negative_prompt)
-
-    if ratio_key in CLOSEUP_KEYS:
-        descriptions = {
-            "front": "中央 70% 方形区裁剪放大（正面）",
-            "side":  "中央偏右 60% 方形区裁剪放大（侧面）",
-            "detail": "中央 35% 紧凑方形区裁剪放大（局部细节）",
-        }
-        return (
-            f"[特写图] {descriptions.get(ratio_key, ratio_key)}\n"
-            f"实现方式：PIL 从原图直接 crop + 放大（不调 Codex，不改图内容）。\n"
-            f"输出尺寸：{size_hint} JPEG。"
-        )
-
-    scene_clean = (scene_prompt or "").strip()
-    if not scene_clean:
-        # 纯人工模式：没有 scene 模板，完全依赖 extra_prompt 描述场景
-        base = (
-            f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
-            f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene "
-            f"defined entirely by the additional user instruction below. "
-            f"\n\nCritical rules: "
-            f"(1) the product itself must remain visually identical to the input — same shape, "
-            f"same colors, same patterns, same orientation, same materials; "
-            f"(2) ONLY the surrounding scene/background changes; "
-            f"(3) natural lighting and shadow consistent with the user-described scene; "
-            f"(4) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
-            f"(5) output a single high-resolution {size_hint} photograph."
-        )
-        return base + suffix + neg_suffix
-
-    base = (
-        f"Place this exact product (preserve every embroidery detail, every stitch, every color, "
-        f"every texture — pixel-fidelity for the product itself) into a new {size_hint} scene. "
-        f"\n\nScene: {scene_clean}\n\n"
-        f"Critical rules: "
-        f"(1) the product itself must remain visually identical to the input — same shape, "
-        f"same colors, same patterns, same orientation, same materials; "
-        f"(2) ONLY the surrounding scene/background changes; "
-        f"(3) match the lighting direction and color temperature between product and new scene "
-        f"(natural shadow under product, ambient color reflections, contact shadow); "
-        f"(4) place the product on a believable surface with natural perspective; "
-        f"(5) absolutely NO text, NO watermark, NO additional duplicate products in the frame; "
-        f"(6) output a single high-resolution {size_hint} photograph."
-    )
-    return base + suffix + neg_suffix
-
-
-def _format_negative(extra_negative_prompt: str) -> str:
-    txt = (extra_negative_prompt or "").strip()
-    if not txt:
-        return ""
-    return f"\n\nAdditional negative constraints (must NOT appear): {txt}"
-
-
-def _format_extra(extra_prompt: str, weight: float) -> str:
-    """把用户附加 prompt 按权重转成强调级别字符串，附加到 base prompt 后。"""
-    txt = (extra_prompt or "").strip()
-    if not txt:
-        return ""
-    w = max(0.0, min(1.0, float(weight or 0.0)))
-    if w < 0.25:
-        emphasis = "Light preference (apply if it does not conflict with the rules above)"
-    elif w < 0.55:
-        emphasis = "Moderate emphasis"
-    elif w < 0.85:
-        emphasis = "Strong emphasis"
-    else:
-        emphasis = "HARD CONSTRAINT (must satisfy)"
-    return (
-        f"\n\nAdditional user instruction ({emphasis}, weight={w:.2f}): {txt}"
-    )
-
-
-def codex_text(
-    *,
-    prompt: str,
-    input_image: Path | None = None,
-    timeout: int = 90,
-    codex_bin: str = "codex",
-) -> str:
-    """Run Codex CLI in text-output mode (no image expected).
-    Returns stdout text. Used for vision/describe + prompt-expansion endpoints."""
-    cmd = [codex_bin, "exec", "-", "--ephemeral", "--skip-git-repo-check"]
-    if input_image is not None:
-        cmd.extend(["-i", str(input_image)])
-    try:
-        proc = subprocess.run(
-            cmd, input=prompt.encode("utf-8"),
-            capture_output=True, timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise CodexImageError(f"codex exec timed out after {timeout}s") from e
-    except FileNotFoundError as e:
-        raise CodexImageError(f"codex binary not found: {codex_bin}") from e
-    if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:]
-        raise CodexImageError(f"codex rc={proc.returncode}: {stderr}")
-    return proc.stdout.decode("utf-8", errors="replace")

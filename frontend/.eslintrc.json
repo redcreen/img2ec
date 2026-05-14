@@ -1,0 +1,17 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "plugins": ["@typescript-eslint"],
+  "parser": "@typescript-eslint/parser",
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off",
+    "@next/next/no-img-element": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "no-console": ["warn", { "allow": ["warn", "error", "info"] }]
+  },
+  "ignorePatterns": ["lib/api.gen.ts", ".next/", "node_modules/", "e2e/", "playwright-report/", "test-results/"]
+}

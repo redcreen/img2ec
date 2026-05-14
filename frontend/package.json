@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:api": "cd ../backend && .venv/bin/python scripts/dump_openapi.py && cd ../frontend && npx openapi-typescript ../docs/openapi.json -o lib/api.gen.ts"
   },
   "dependencies": {
     "next": "^14.2.0",
@@ -17,11 +18,17 @@
     "swr": "^2.2.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.6.0",

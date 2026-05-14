@@ -68,3 +68,8 @@ frontend/tsconfig.tsbuildinfo
 
 # scratch / debugging artifacts
 backend/tmp/
+
+# Playwright / vitest artifacts
+frontend/test-results/
+frontend/playwright-report/
+backend/test-results/
