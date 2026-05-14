@@ -114,3 +114,34 @@ def test_build_preview_equals_actual_when_same_args():
                 extra_prompt="logo visible", extra_weight=0.6,
                 extra_negative_prompt="no people")
     assert build_master_prompt(**args) == build_master_prompt(**args)
+
+
+def test_build_reference_mode_ignores_scene():
+    """has_reference=True 时即使 scene_prompt 非空也走参考图分支。"""
+    p = build_master_prompt(
+        scene_prompt="should be ignored",
+        ratio_key="1x1",
+        has_reference=True,
+    )
+    assert "TWO reference images" in p
+    assert "should be ignored" not in p
+    assert "PRODUCT to place" in p
+    assert "SCENE REFERENCE" in p
+
+
+def test_build_reference_mode_forbids_copying_ref_text():
+    """参考图模式必须明确指出不要把参考图里的文字 / banner / 其他产品搬到输出。"""
+    p = build_master_prompt(
+        scene_prompt="",
+        ratio_key="3x4",
+        has_reference=True,
+    )
+    assert "NEVER copy text" in p or "do not copy" in p.lower() or "never copy" in p.lower()
+    # 参考图模式仍走 extra/negative 兜底
+    p2 = build_master_prompt(
+        scene_prompt="", ratio_key="1x1", has_reference=True,
+        extra_prompt="warm tone", extra_weight=0.5,
+        extra_negative_prompt="no animals",
+    )
+    assert "warm tone" in p2
+    assert "no animals" in p2

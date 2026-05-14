@@ -64,10 +64,13 @@ def build_master_prompt(
     extra_prompt: str = "",
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
+    has_reference: bool = False,
 ) -> str:
     """组装传给 Codex 的完整 prompt。
 
-    - scene_prompt 为空 → 纯人工模式
+    - has_reference=True → 参考图驱动模式（输入有第二张参考图；scene_prompt 即使
+      非空也忽略，由参考图决定场景；模板和参考图二选一是 UI 约束）
+    - scene_prompt 为空且无参考图 → 纯人工模式
     - ratio_key ∈ CLOSEUP_KEYS → 仅返回说明文本（实际由 PIL crop 实现）
     - extra_* → 附加用户诉求与负面约束
     """
@@ -86,6 +89,29 @@ def build_master_prompt(
             f"实现方式：PIL 从原图直接 crop + 放大（不调 Codex，不改图内容）。\n"
             f"输出尺寸：{size_hint} JPEG。"
         )
+
+    if has_reference:
+        # 参考图驱动：第一张 ref 是产品，第二张 ref 是场景参考图
+        base = (
+            f"You receive TWO reference images: "
+            f"(A) the PRODUCT to place — preserve every embroidery detail, every stitch, "
+            f"every color, every texture (pixel-fidelity for the product itself); "
+            f"(B) the SCENE REFERENCE — match its composition framing, surface material, "
+            f"prop arrangement, lighting direction, color temperature, depth-of-field and "
+            f"overall aesthetic. "
+            f"\n\nGoal: place the product (A) into a NEW scene that visually echoes the "
+            f"reference (B). It does not have to be identical to (B); recreate the same "
+            f"feel and stage."
+            f"\n\nCritical rules: "
+            f"(1) the product itself must remain visually identical to (A) — same shape, "
+            f"same colors, same patterns, same orientation, same materials; "
+            f"(2) NEVER copy text, banner, watermark, branding or other products from (B) "
+            f"into the output — only its scene/lighting/aesthetic is referenced; "
+            f"(3) natural shadow under product, ambient color reflections, contact shadow; "
+            f"(4) absolutely NO text, NO watermark, NO additional duplicate products; "
+            f"(5) output a single high-resolution {size_hint} photograph."
+        )
+        return base + suffix + neg_suffix
 
     scene_clean = (scene_prompt or "").strip()
     if not scene_clean:

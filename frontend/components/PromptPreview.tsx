@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { Scene } from "@/lib/types";
+import type { SceneMode, ReferenceImage } from "@/lib/genConfig";
 import { Lightbox } from "./Lightbox";
 import { SceneSelectModal } from "./SceneSelectModal";
 
@@ -19,7 +20,8 @@ export function PromptPreview({
   pid, sid, scene,
   extraPrompt, extraWeight, onExtraPromptChange, onExtraWeightChange,
   extraNegativePrompt = "", onExtraNegativePromptChange,
-  useTemplate = true, onUseTemplateChange,
+  mode, onModeChange,
+  referenceImage, onReferenceChange,
   onSceneChanged,
 }: {
   pid: string; sid: string; scene?: Scene;
@@ -29,8 +31,10 @@ export function PromptPreview({
   onExtraWeightChange: (w: number) => void;
   extraNegativePrompt?: string;
   onExtraNegativePromptChange?: (s: string) => void;
-  useTemplate?: boolean;
-  onUseTemplateChange?: (b: boolean) => void;
+  mode: SceneMode;
+  onModeChange: (m: SceneMode) => void;
+  referenceImage: ReferenceImage | null;
+  onReferenceChange: (r: ReferenceImage | null) => void;
   onSceneChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -38,60 +42,145 @@ export function PromptPreview({
   const [coverLightbox, setCoverLightbox] = useState(false);
   const [pickModal, setPickModal] = useState(false);
   const [picking, setPicking] = useState(false);
-  // 重新拉 prompt：useTemplate 也参与 key，让 toggle 切换立即反映到预览
-  const swrKey = open ? `prompt-${sid}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${useTemplate}` : null;
+  const [uploadingRef, setUploadingRef] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const disableScene = mode === "reference";
+  const hasReference = mode === "reference" && referenceImage !== null;
+  const swrKey = open
+    ? `prompt-${sid}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${mode}-${hasReference}`
+    : null;
   const { data, error } = useSWR(
     swrKey,
-    () => api.previewPrompt(pid, sid, extraPrompt, extraWeight, extraNegativePrompt, !useTemplate)
+    () => api.previewPrompt(
+      pid, sid, extraPrompt, extraWeight, extraNegativePrompt,
+      disableScene, hasReference,
+    ),
   );
+
+  const pickRefFile = async (f: File | null) => {
+    if (!f) return;
+    setUploadingRef(true);
+    try {
+      const r = await api.uploadReferenceImage(pid, f);
+      onReferenceChange({ path: r.path, url: r.url, name: r.name });
+    } catch (e: any) {
+      alert("参考图上传失败：" + e.message);
+    } finally {
+      setUploadingRef(false);
+    }
+  };
+
+  // 选了"参考图" tab 时支持 ⌘V/Ctrl+V 直接粘贴
+  useEffect(() => {
+    if (mode !== "reference") return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const it of Array.from(items)) {
+        if (it.kind === "file" && it.type.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) { e.preventDefault(); pickRefFile(f); return; }
+        }
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [mode, pid]);
 
   return (
     <div>
-      {/* 模板信息 inline 展示（折叠态也可见，点缩略图放大） */}
-      <div className="flex items-start gap-3 mb-2">
-        {scene?.cover_url && (
-          <img
-            src={scene.cover_url}
-            alt={scene.name}
-            onClick={() => setCoverLightbox(true)}
-            className="w-20 h-20 rounded object-cover border border-zinc-700 flex-shrink-0 cursor-zoom-in hover:border-blue-500 transition"
-            title="点击查看大图"
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-0.5 flex-wrap">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={useTemplate}
-                onChange={(e) => onUseTemplateChange?.(e.target.checked)}
-                className="w-3.5 h-3.5 accent-blue-500"
-              />
-              <span className="text-[10px] uppercase opacity-70">启用模板</span>
-            </label>
-            {useTemplate && (
-              <button
-                onClick={() => setPickModal(true)}
-                disabled={picking}
-                className="text-[10px] px-2 py-0.5 rounded bg-blue-600/15 hover:bg-blue-600/30 border border-blue-500/50 hover:border-blue-400 text-blue-200 transition disabled:opacity-50"
-                title={scene ? "选其他模板" : "选一个模板"}
-              >{scene ? "⮂ 更换模板" : "📋 选择模板"}</button>
+      {/* 选项卡：模板 / 参考图 */}
+      <div className="flex gap-1 mb-3">
+        <TabBtn active={mode === "template"} onClick={() => onModeChange("template")}>📋 模板</TabBtn>
+        <TabBtn active={mode === "reference"} onClick={() => onModeChange("reference")}>🖼 参考图</TabBtn>
+        <span className="ml-auto text-[10px] opacity-50 self-center">二选一 · 都不用时下方"附加提示词"兜底</span>
+      </div>
+
+      {/* === 模板 tab === */}
+      {mode === "template" && (
+        <div className="flex items-start gap-3 mb-3">
+          {scene?.cover_url && (
+            <img
+              src={scene.cover_url}
+              alt={scene.name}
+              onClick={() => setCoverLightbox(true)}
+              className="w-20 h-20 rounded object-cover border border-zinc-700 flex-shrink-0 cursor-zoom-in hover:border-blue-500 transition"
+              title="点击查看大图"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <button
+              onClick={() => setPickModal(true)}
+              disabled={picking}
+              className="text-[10px] px-2 py-0.5 rounded bg-blue-600/15 hover:bg-blue-600/30 border border-blue-500/50 hover:border-blue-400 text-blue-200 transition disabled:opacity-50 mb-1"
+              title={scene ? "选其他模板" : "选一个模板"}
+            >{scene ? "⮂ 更换模板" : "📋 选择模板"}</button>
+            {scene ? (
+              <div>
+                <div className="text-xs font-semibold">{scene.name}</div>
+                <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.category}</div>
+                <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.desc || scene.prompt.slice(0, 60)}</div>
+              </div>
+            ) : (
+              <div className="text-xs opacity-60">未设置模板 — 点上方按钮选一个</div>
             )}
           </div>
-          {scene ? (
-            <div className={!useTemplate ? "opacity-50" : ""}>
-              <div className="text-xs font-semibold">{scene.name}</div>
-              <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.category}</div>
-              <div className="text-[10px] opacity-55 mt-0.5 line-clamp-2">{scene.desc || scene.prompt.slice(0, 60)}</div>
-              {!useTemplate && (
-                <div className="text-[10px] text-amber-300 mt-1">已禁用 · 本次生成不用此模板（也不影响该模板的设置）</div>
-              )}
+        </div>
+      )}
+
+      {/* === 参考图 tab === */}
+      {mode === "reference" && (
+        <div className="mb-3">
+          {referenceImage ? (
+            <div className="flex items-start gap-3">
+              <img
+                src={referenceImage.url}
+                alt={referenceImage.name}
+                className="w-32 h-32 rounded object-cover border border-zinc-700 flex-shrink-0"
+              />
+              <div className="flex-1 text-xs min-w-0">
+                <div className="opacity-80 mb-1 truncate" title={referenceImage.name}>{referenceImage.name}</div>
+                <div className="opacity-50 mb-2 text-[10px]">参考图驱动 · 本次生成会忽略 SKU 模板</div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingRef}
+                    className="text-[11px] underline opacity-60 hover:opacity-100 disabled:opacity-30"
+                  >换一张</button>
+                  <button
+                    onClick={() => onReferenceChange(null)}
+                    className="text-[11px] underline opacity-60 hover:opacity-100"
+                  >移除</button>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="text-xs opacity-60">未设置模板 — 点"⮂ 更换模板"选一个，或直接填下方"附加提示词"</div>
+            <label
+              className="block border-2 border-dashed border-zinc-700 rounded p-4 text-center cursor-pointer hover:border-blue-500 transition"
+              onDrop={(e) => { e.preventDefault(); pickRefFile(e.dataTransfer.files?.[0] || null); }}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => pickRefFile(e.target.files?.[0] || null)}
+              />
+              <div className="text-sm">{uploadingRef ? "上传中…" : "点击选择 · 拖入 · 或 ⌘V/Ctrl+V 粘贴"}</div>
+              <div className="text-[10px] opacity-50 mt-1">参考图作为场景指引；模型把产品换到类似场景里</div>
+            </label>
           )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => pickRefFile(e.target.files?.[0] || null)}
+          />
         </div>
-      </div>
+      )}
 
       {coverLightbox && scene?.cover_url && (
         <Lightbox src={scene.cover_url} alt={scene.name} onClose={() => setCoverLightbox(false)} />
@@ -115,10 +204,10 @@ export function PromptPreview({
         />
       )}
 
-      {/* 附加提示词（模板 prompt 下方） — 影响这次生成 */}
+      {/* 附加提示词 — 任一 mode 下都可用 */}
       <div className="mb-3 bg-zinc-950 border border-zinc-700 rounded p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase opacity-50">附加提示词（叠加在模板之上）</div>
+          <div className="text-[10px] uppercase opacity-50">附加提示词（叠加在场景之上）</div>
           <div className="text-[10px] opacity-50">不持久化 · 只影响本次生成</div>
         </div>
         <textarea
@@ -155,7 +244,6 @@ export function PromptPreview({
                                    : "硬性约束"}
           </span>
         </div>
-        {/* 负面提示词 */}
         {onExtraNegativePromptChange && (
           <>
             <div className="text-[10px] uppercase opacity-50 pt-1">负面提示词（绝对不要出现）</div>
@@ -175,7 +263,7 @@ export function PromptPreview({
         className="text-[11px] opacity-70 hover:opacity-100 flex items-center gap-1"
       >
         <span>{open ? "▼" : "▶"}</span>
-        <span>查看完整 Prompt（模板 prompt + 送给 Codex 的实际指令）</span>
+        <span>查看完整 Prompt（送给 Codex 的实际指令）</span>
       </button>
 
       {open && (
@@ -196,8 +284,10 @@ export function PromptPreview({
                     </>
                   )}
                 </div>
+              ) : hasReference ? (
+                <div className="text-[11px] opacity-60">参考图驱动模式 · 模板不参与；prompt 让模型对齐参考图的构图/光影。</div>
               ) : (
-                <div className="text-[11px] opacity-60">已禁用模板 · 完整 prompt 仅由下方"附加提示词"组成。</div>
+                <div className="text-[11px] opacity-60">已禁用模板 · 完整 prompt 仅由"附加提示词"组成。</div>
               )}
 
               <div>
@@ -224,5 +314,20 @@ export function PromptPreview({
         </div>
       )}
     </div>
+  );
+}
+
+function TabBtn({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded border transition ${
+        active
+          ? "bg-blue-600 text-white border-blue-500"
+          : "bg-zinc-950 text-zinc-300 border-zinc-700 hover:border-zinc-500"
+      }`}
+    >{children}</button>
   );
 }

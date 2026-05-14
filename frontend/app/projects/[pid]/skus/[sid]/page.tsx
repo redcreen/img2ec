@@ -30,7 +30,7 @@ export default function SkuDetailPage() {
   const [sourceLightbox, setSourceLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const [genConfig, dispatchGen] = useGenConfig();
+  const [genConfig, dispatchGen] = useGenConfig(sid);
   const [renamingSku, setRenamingSku] = useState(false);
   const [skuNameDraft, setSkuNameDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
@@ -313,8 +313,10 @@ export default function SkuDetailPage() {
                 extraPrompt={genConfig.extraPrompt}
                 extraWeight={genConfig.extraWeight}
                 extraNegativePrompt={genConfig.extraNegativePrompt}
-                useTemplate={genConfig.useTemplate}
-                onUseTemplateChange={(v) => dispatchGen({ type: "set_use_template", value: v })}
+                mode={genConfig.mode}
+                onModeChange={(m) => dispatchGen({ type: "set_mode", value: m })}
+                referenceImage={genConfig.referenceImage}
+                onReferenceChange={(r) => dispatchGen({ type: "set_reference", value: r })}
                 onExtraPromptChange={(v) => dispatchGen({ type: "set_prompt", value: v })}
                 onExtraWeightChange={(v) => dispatchGen({ type: "set_weight", value: v })}
                 onExtraNegativePromptChange={(v) => dispatchGen({ type: "set_negative", value: v })}

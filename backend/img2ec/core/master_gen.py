@@ -108,6 +108,7 @@ def generate_all_masters(
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
     overwrite: bool = False,
+    reference_image: Path | None = None,
 ) -> dict[str, Path]:
     """Codex image-to-image 出 master。`ratios` 限定生成哪些尺寸（None=全部 5 张）。"""
     del ip_weight, seed  # unused
@@ -143,6 +144,7 @@ def generate_all_masters(
             )
         elif use_codex:
             # Path C：源图 + 场景 prompt → 一步出 master（含商品 + 场景 + 自然光照阴影）
+            # 若给了 reference_image，prompt 走"参考图驱动"分支
             generate_master_from_input(
                 source_image=source_image,
                 scene_prompt=prompt,
@@ -151,6 +153,7 @@ def generate_all_masters(
                 extra_prompt=extra_prompt,
                 extra_weight=extra_weight,
                 extra_negative_prompt=extra_negative_prompt,
+                reference_image=reference_image,
             )
         else:
             # Path A fallback：抠图 + AI bg + PIL composite

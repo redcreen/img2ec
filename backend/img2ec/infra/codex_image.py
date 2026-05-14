@@ -63,9 +63,17 @@ def _run_codex_to_image(
     timeout: int,
     codex_bin: str = "codex",  # legacy, ignored
     max_retries: int = 2,
+    extra_refs: list[Path] | None = None,
 ) -> Path:
-    """Run codex via adapter, retry on stochastic refusal, save as JPEG."""
-    refs = [input_image] if input_image is not None else None
+    """Run codex via adapter, retry on stochastic refusal, save as JPEG.
+
+    extra_refs：额外参考图（如场景参考图）。input_image 仍是首位（产品主体）。
+    """
+    refs: list[Path] | None = None
+    if input_image is not None:
+        refs = [input_image]
+    if extra_refs:
+        refs = (refs or []) + list(extra_refs)
     last_err: Exception | None = None
     for attempt in range(max_retries + 1):
         with tempfile.TemporaryDirectory(prefix="img2ec-codex-stage-") as td:
@@ -215,8 +223,13 @@ def generate_master_from_input(
     extra_prompt: str = "",
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
+    reference_image: Path | None = None,
 ) -> Path:
-    """Path C — image-to-image：商品 + 场景一步出图。"""
+    """Path C — image-to-image：商品 + 场景一步出图。
+
+    reference_image：可选场景参考图。设置时 scene_prompt 即使为空，
+    build_master_prompt 也会换成"参考图驱动模式"。
+    """
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
     if target_dims is None:
         raise CodexImageError(f"unknown ratio_key: {ratio_key}")
@@ -224,7 +237,9 @@ def generate_master_from_input(
         scene_prompt=scene_prompt, ratio_key=ratio_key,
         extra_prompt=extra_prompt, extra_weight=extra_weight,
         extra_negative_prompt=extra_negative_prompt,
+        has_reference=reference_image is not None,
     )
+    extra_refs = [reference_image] if reference_image else None
     return _run_codex_to_image(
         full_prompt=full_prompt,
         input_image=source_image,
@@ -232,6 +247,7 @@ def generate_master_from_input(
         output_path=output_path,
         timeout=timeout,
         codex_bin=codex_bin,
+        extra_refs=extra_refs,
     )
 
 

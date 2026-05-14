@@ -1058,7 +1058,7 @@
           "skus"
         ],
         "summary": "Preview Prompt",
-        "description": "返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。\ndisable_scene=true → 模拟\"启用模板\"关闭：preview 与实际 codex 提交完全一致。",
+        "description": "返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。\n- disable_scene=true → 模拟\"启用模板\"关闭：纯人工 prompt 模式\n- has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）\npreview 与实际 codex 提交走同一个 build_master_prompt，保证一致。",
         "operationId": "preview_prompt_api_projects__project_id__skus__sku_id__preview_prompt_get",
         "parameters": [
           {
@@ -1117,6 +1117,16 @@
               "type": "boolean",
               "default": false,
               "title": "Disable Scene"
+            }
+          },
+          {
+            "name": "has_reference",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Has Reference"
             }
           }
         ],
@@ -2606,6 +2616,61 @@
         }
       }
     },
+    "/api/projects/{project_id}/uploads/reference": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Upload Reference",
+        "description": "存一张参考图到临时目录。返回 path / url；前端记到 genConfig。",
+        "operationId": "upload_reference_api_projects__project_id__uploads_reference_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_reference_api_projects__project_id__uploads_reference_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Upload Reference Api Projects  Project Id  Uploads Reference Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -2750,6 +2815,20 @@
           "file"
         ],
         "title": "Body_upload_image_api_projects__project_id__skus__sku_id__images_post"
+      },
+      "Body_upload_reference_api_projects__project_id__uploads_reference_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_reference_api_projects__project_id__uploads_reference_post"
       },
       "BundleAllRequest": {
         "properties": {
@@ -3108,6 +3187,17 @@
             "type": "boolean",
             "title": "Disable Scene",
             "default": false
+          },
+          "reference_image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Image Path"
           }
         },
         "type": "object",

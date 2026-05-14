@@ -257,8 +257,10 @@ export interface paths {
         };
         /**
          * Preview Prompt
-         * @description 返回该 SKU 当前 scene 拼装出的 5 个 ratio 完整 prompt（前端展示用）。
-         *     disable_scene=true → 模拟"启用模板"关闭：preview 与实际 codex 提交完全一致。
+         * @description 返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。
+         *     - disable_scene=true → 模拟"启用模板"关闭：纯人工 prompt 模式
+         *     - has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）
+         *     preview 与实际 codex 提交走同一个 build_master_prompt，保证一致。
          */
         get: operations["preview_prompt_api_projects__project_id__skus__sku_id__preview_prompt_get"];
         put?: never;
@@ -703,6 +705,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/uploads/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Reference
+         * @description 存一张参考图到临时目录。返回 path / url；前端记到 genConfig。
+         */
+        post: operations["upload_reference_api_projects__project_id__uploads_reference_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -789,6 +811,11 @@ export interface components {
         };
         /** Body_upload_image_api_projects__project_id__skus__sku_id__images_post */
         Body_upload_image_api_projects__project_id__skus__sku_id__images_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_reference_api_projects__project_id__uploads_reference_post */
+        Body_upload_reference_api_projects__project_id__uploads_reference_post: {
             /** File */
             file: string;
         };
@@ -953,6 +980,8 @@ export interface components {
              * @default false
              */
             disable_scene: boolean;
+            /** Reference Image Path */
+            reference_image_path?: string | null;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -2022,6 +2051,7 @@ export interface operations {
                 extra_weight?: number;
                 extra_negative_prompt?: string;
                 disable_scene?: boolean;
+                has_reference?: boolean;
             };
             header?: never;
             path: {
@@ -2868,6 +2898,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SetConcurrencyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_reference_api_projects__project_id__uploads_reference_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_reference_api_projects__project_id__uploads_reference_post"];
             };
         };
         responses: {

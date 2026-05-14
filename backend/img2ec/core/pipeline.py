@@ -35,6 +35,7 @@ def process_one_image(
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
     overwrite: bool = False,
+    reference_image: Path | None = None,
 ) -> dict[str, list[Path]]:
     """跑完返回派生输出 {platform: [paths]} 字典。"""
     cb: ProgressCb = on_progress or (lambda _s, _p: None)
@@ -64,6 +65,7 @@ def process_one_image(
         extra_weight=extra_weight,
         extra_negative_prompt=extra_negative_prompt,
         overwrite=overwrite,
+        reference_image=reference_image,
     )
 
     # Pillow 派生 15 个平台尺寸（裁剪/缩放）

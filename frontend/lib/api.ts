@@ -127,7 +127,10 @@ export const api = {
   processSku: (
     pid: string, sid: string,
     ratios?: string[], variantId?: string,
-    extra?: { prompt: string; weight: number; negative?: string; disableScene?: boolean },
+    extra?: {
+      prompt: string; weight: number; negative?: string;
+      disableScene?: boolean; referencePath?: string | null;
+    },
     imageIds?: string[],
   ) => {
     const qs = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : "";
@@ -141,11 +144,21 @@ export const api = {
       body.extra_negative_prompt = extra.negative;
     }
     if (extra && extra.disableScene) body.disable_scene = true;
+    if (extra && extra.referencePath) body.reference_image_path = extra.referencePath;
     if (imageIds && imageIds.length > 0) body.image_ids = imageIds;
     return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
       body: Object.keys(body).length ? JSON.stringify(body) : undefined,
     });
+  },
+  uploadReferenceImage: async (pid: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`/api/projects/${pid}/uploads/reference`, {
+      method: "POST", body: fd,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<{ path: string; url: string; name: string; size: number }>;
   },
   patchImage: (pid: string, sid: string, iid: string, body: { scene_id: string | null }) =>
     req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}/images/${iid}`, {
@@ -161,6 +174,7 @@ export const api = {
     pid: string, sid: string,
     extraPrompt = "", extraWeight = 0,
     extraNegativePrompt = "", disableScene = false,
+    hasReference = false,
   ) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {
@@ -169,6 +183,7 @@ export const api = {
     }
     if (extraNegativePrompt) qs.set("extra_negative_prompt", extraNegativePrompt);
     if (disableScene) qs.set("disable_scene", "true");
+    if (hasReference) qs.set("has_reference", "true");
     const url = `/api/projects/${pid}/skus/${sid}/preview-prompt${qs.toString() ? "?" + qs.toString() : ""}`;
     return req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(url);
   },

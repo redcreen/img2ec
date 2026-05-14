@@ -27,6 +27,7 @@ def process_image_task(
     extra_negative_prompt: str = "",
     overwrite: bool = False,
     disable_scene: bool = False,
+    reference_image_path: str | None = None,
 ) -> str:
     settings = get_settings()
     db = SessionLocal()
@@ -38,12 +39,17 @@ def process_image_task(
 
         sku = db.get(SKU, img.sku_id)
         project: Project = db.get(Project, sku.project_id)
-        # 优先用 image 自己的 scene_id；fallback 到 SKU 默认；disable_scene=true 时强制忽略
-        effective_scene_id = None if disable_scene else (img.scene_id or sku.scene_id)
+        # 参考图模式：scene 强制忽略（UI 端二选一保证不冲突，这里再兜底）
+        has_reference = bool(reference_image_path)
+        effective_scene_id = (
+            None if (disable_scene or has_reference)
+            else (img.scene_id or sku.scene_id)
+        )
         scene: Scene | None = db.get(Scene, effective_scene_id) if effective_scene_id else None
-        if scene is None and not (extra_prompt or "").strip():
+        # 兜底三选一：模板 OR 参考图 OR extra_prompt
+        if scene is None and not has_reference and not (extra_prompt or "").strip():
             img.status = ImageStatus.FAILED.value
-            img.err_msg = "no scene and no extra_prompt — at least one required"
+            img.err_msg = "must provide one of: scene template, reference image, or extra prompt"
             db.commit()
             return "no_scene"
 
@@ -112,6 +118,7 @@ def process_image_task(
                 extra_negative_prompt=extra_negative_prompt,
                 overwrite=overwrite,
                 extra_weight=extra_weight,
+                reference_image=Path(reference_image_path) if reference_image_path else None,
             )
             # 派生：合并新生成的 paths 到已有的（partial generation 累加）
             new_derived = {

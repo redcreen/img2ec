@@ -31,10 +31,26 @@ describe("genConfigReducer", () => {
     expect(s.selectedImgIds.size).toBe(0);
   });
 
-  it("set_use_template toggles", () => {
-    expect(initialGenConfig.useTemplate).toBe(true);
-    const s = genConfigReducer(initialGenConfig, { type: "set_use_template", value: false });
-    expect(s.useTemplate).toBe(false);
+  it("set_mode switches between template and reference", () => {
+    expect(initialGenConfig.mode).toBe("template");
+    const s = genConfigReducer(initialGenConfig, { type: "set_mode", value: "reference" });
+    expect(s.mode).toBe("reference");
+  });
+
+  it("set_reference attaches image meta", () => {
+    const ref = { path: "/tmp/ref-x.jpg", url: "/static/ai-previews/ref-x.jpg", name: "ref.jpg" };
+    const s = genConfigReducer(initialGenConfig, { type: "set_reference", value: ref });
+    expect(s.referenceImage).toEqual(ref);
+  });
+
+  it("hydrate replaces state wholesale", () => {
+    const next = {
+      ...initialGenConfig,
+      mode: "reference" as const,
+      extraPrompt: "x",
+    };
+    const s = genConfigReducer(initialGenConfig, { type: "hydrate", value: next });
+    expect(s).toEqual(next);
   });
 
   it("reset returns initial", () => {
@@ -50,12 +66,6 @@ describe("toProcessExtra", () => {
     expect(toProcessExtra(initialGenConfig)).toBeUndefined();
   });
 
-  it("emits disableScene=true when useTemplate=false", () => {
-    const r = toProcessExtra({ ...initialGenConfig, useTemplate: false });
-    expect(r).toBeDefined();
-    expect(r!.disableScene).toBe(true);
-  });
-
   it("trims extra prompts", () => {
     const r = toProcessExtra({ ...initialGenConfig, extraPrompt: "  hi  " });
     expect(r!.prompt).toBe("hi");
@@ -64,5 +74,27 @@ describe("toProcessExtra", () => {
   it("passes negative prompt", () => {
     const r = toProcessExtra({ ...initialGenConfig, extraNegativePrompt: "no text" });
     expect(r!.negative).toBe("no text");
+  });
+
+  it("reference mode without uploaded image → still no extras (defensive)", () => {
+    // mode=reference 但没图：实际 UI 应该禁用 generate；这里 toProcessExtra
+    // 也不应当返回 reference path（returns disableScene=true 然 referencePath=null）
+    const r = toProcessExtra({ ...initialGenConfig, mode: "reference" });
+    // 切到 reference 模式本身就算"有变更"，应当返回非空
+    expect(r).toBeDefined();
+    expect(r!.disableScene).toBe(true);
+    expect(r!.referencePath).toBeNull();
+  });
+
+  it("reference mode with image → disableScene=true + path", () => {
+    const ref = { path: "/tmp/ref-x.jpg", url: "/x.jpg", name: "x" };
+    const r = toProcessExtra({ ...initialGenConfig, mode: "reference", referenceImage: ref });
+    expect(r!.disableScene).toBe(true);
+    expect(r!.referencePath).toBe("/tmp/ref-x.jpg");
+  });
+
+  it("template mode + no extras → undefined", () => {
+    const r = toProcessExtra({ ...initialGenConfig, mode: "template" });
+    expect(r).toBeUndefined();
   });
 });
