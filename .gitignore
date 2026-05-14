@@ -65,3 +65,6 @@ frontend/tsconfig.tsbuildinfo
 
 # Local service runtime (pid/log files from scripts/start.sh)
 .logs/
+
+# scratch / debugging artifacts
+backend/tmp/
