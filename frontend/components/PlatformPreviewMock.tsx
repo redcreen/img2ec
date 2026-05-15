@@ -142,6 +142,13 @@ export function PlatformPreviewMock({
   const applyDetail = async (keys?: string[]) => {
     const ks = keys ?? detailItems.map((it) => it.key);
     if (ks.length === 0) return;
+    // 后端硬约束：image_keys 里必须有一张 1x1 master。前端先拦，给个友好提示
+    const hasOneByOne = ks.some((k) => k === "1x1" || k.endsWith(":1x1"));
+    if (!hasOneByOne) {
+      alert("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。\n" +
+        "请先在 MASTER 资产里给某张原图生成 1x1，再加入详情图列表。");
+      return;
+    }
     setComposing(true);
     try {
       await api.composeDetail(pid, sid, variant.id, ks);
@@ -162,7 +169,13 @@ export function PlatformPreviewMock({
     if (detailKey === lastAppliedRef.current) return;
     if (composeTimerRef.current) clearTimeout(composeTimerRef.current);
     composeTimerRef.current = setTimeout(() => {
-      if (detailItems.length > 0) {
+      // 自动 compose 的隐式触发：detailItems 必须含 :1x1 才提交；
+      // 否则后端会 400 ("compose requires at least one 1x1 master") 弹框
+      // 打扰用户。手动 "应用到详情页" 按钮走 applyDetail 同样的守卫。
+      const hasOneByOne = detailItems.some(
+        (it) => it.key === "1x1" || it.key.endsWith(":1x1"),
+      );
+      if (detailItems.length > 0 && hasOneByOne) {
         lastAppliedRef.current = detailKey;
         applyDetail(detailItems.map((it) => it.key));
       }

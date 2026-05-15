@@ -99,6 +99,11 @@ export function ImageCurationPanel({
 
   const recompose = async (keys: ImageKey[]) => {
     if (keys.length === 0) return;
+    const hasOneByOne = keys.some((k) => k === "1x1" || k.endsWith(":1x1"));
+    if (!hasOneByOne) {
+      alert("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。");
+      return;
+    }
     setRecomposing(true);
     try {
       await api.composeDetail(pid, sid, variant.id, keys);
