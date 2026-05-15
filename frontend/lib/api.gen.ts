@@ -214,6 +214,26 @@ export interface paths {
         patch: operations["patch_sku_api_projects__project_id__skus__sku_id__patch"];
         trace?: never;
     };
+    "/api/projects/{project_id}/skus/{sku_id}/dimensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Dimensions
+         * @description 更新 SKU 物理尺寸（cm）。三项可分别为空。改尺寸后前端可单独触发 regenerate。
+         */
+        patch: operations["update_dimensions_api_projects__project_id__skus__sku_id__dimensions_patch"];
+        trace?: never;
+    };
     "/api/projects/{project_id}/skus/{sku_id}/images": {
         parameters: {
             query?: never;
@@ -250,6 +270,26 @@ export interface paths {
          * @description 改单图的 scene_id（per-image 模板覆盖）。
          */
         patch: operations["patch_image_api_projects__project_id__skus__sku_id__images__image_id__patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/skus/{sku_id}/variants/{variant_id}/images/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Images
+         * @description 整体重写该变体下原图的 order_index。前端拖拽完拿到完整新顺序 POST 过来。
+         */
+        post: operations["reorder_images_api_projects__project_id__skus__sku_id__variants__variant_id__images_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/projects/{project_id}/skus/{sku_id}/preview-prompt": {
@@ -318,6 +358,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Single Image
+         * @description 重新生成某张原图的全部规格（默认 8 比例，可指定 ratios 子集）。
+         *     跳过该图当前 in-flight 状态（避免重复入队）。
+         */
+        post: operations["regenerate_single_image_api_projects__project_id__skus__sku_id__images__image_id__regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/skus/{sku_id}/master-versions/delete": {
         parameters: {
             query?: never;
@@ -332,6 +393,26 @@ export interface paths {
          * @description 删除某张 master 图的一个版本。如删的是 primary，下一个版本自动升 primary。
          */
         post: operations["delete_master_version_api_projects__project_id__skus__sku_id__master_versions_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/delete-all-masters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete All Masters For Image
+         * @description 删除该原图下所有 master 版本（含历史 + primary）。物理文件 + DB 一并清。
+         */
+        post: operations["delete_all_masters_for_image_api_projects__project_id__skus__sku_id__images__image_id__delete_all_masters_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -375,67 +456,6 @@ export interface paths {
          * @description 把指定 style 的尺寸图作为 module 加入该变体的详情页底部并重渲 3 平台。
          */
         post: operations["apply_dimension_to_detail_api_projects__project_id__skus__sku_id__variants__variant_id__dimension_apply_to_detail_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/skus/{sku_id}/dimensions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Dimensions
-         * @description 更新 SKU 物理尺寸（cm）。三项可分别为空。改尺寸后前端可单独触发 regenerate。
-         */
-        patch: operations["update_dimensions_api_projects__project_id__skus__sku_id__dimensions_patch"];
-        trace?: never;
-    };
-    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/regenerate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regenerate Single Image
-         * @description 重新生成某张原图的全部规格（默认 8 比例，可指定 ratios 子集）。
-         *     跳过该图当前 in-flight 状态（避免重复入队）。
-         */
-        post: operations["regenerate_single_image_api_projects__project_id__skus__sku_id__images__image_id__regenerate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/skus/{sku_id}/images/{image_id}/delete-all-masters": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Delete All Masters For Image
-         * @description 删除该原图下所有 master 版本（含历史 + primary）。物理文件 + DB 一并清。
-         */
-        post: operations["delete_all_masters_for_image_api_projects__project_id__skus__sku_id__images__image_id__delete_all_masters_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1068,6 +1088,11 @@ export interface components {
              * @default 0
              */
             extra_weight: number;
+        };
+        /** ReorderRequest */
+        ReorderRequest: {
+            /** Image Ids */
+            image_ids: string[];
         };
         /** RevealReq */
         RevealReq: {
@@ -1984,6 +2009,42 @@ export interface operations {
             };
         };
     };
+    update_dimensions_api_projects__project_id__skus__sku_id__dimensions_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                sku_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SKUDimensions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SKUOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_image_api_projects__project_id__skus__sku_id__images_post: {
         parameters: {
             query?: {
@@ -2067,6 +2128,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ImagePatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SKUOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_images_api_projects__project_id__skus__sku_id__variants__variant_id__images_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                sku_id: string;
+                variant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRequest"];
             };
         };
         responses: {
@@ -2204,6 +2302,45 @@ export interface operations {
             };
         };
     };
+    regenerate_single_image_api_projects__project_id__skus__sku_id__images__image_id__regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                sku_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RegenerateImageRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_master_version_api_projects__project_id__skus__sku_id__master_versions_delete_post: {
         parameters: {
             query?: never;
@@ -2229,6 +2366,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_all_masters_for_image_api_projects__project_id__skus__sku_id__images__image_id__delete_all_masters_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                sku_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SKUOut"];
                 };
             };
             /** @description Validation Error */
@@ -2295,114 +2465,6 @@ export interface operations {
                 "application/json": components["schemas"]["ApplyDimensionRequest"] | null;
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SKUOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_dimensions_api_projects__project_id__skus__sku_id__dimensions_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                sku_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SKUDimensions"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SKUOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    regenerate_single_image_api_projects__project_id__skus__sku_id__images__image_id__regenerate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                sku_id: string;
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RegenerateImageRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_all_masters_for_image_api_projects__project_id__skus__sku_id__images__image_id__delete_all_masters_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                sku_id: string;
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

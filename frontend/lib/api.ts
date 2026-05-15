@@ -167,6 +167,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  reorderImages: (pid: string, sid: string, vid: string, image_ids: string[]) =>
+    req<import("./types").SKU>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}/images/reorder`,
+      { method: "POST", body: JSON.stringify({ image_ids }) },
+    ),
   patchSku: (pid: string, sid: string, body: { scene_id?: string | null; clear_scene?: boolean; name?: string }) =>
     req<import("./types").SKU>(`/api/projects/${pid}/skus/${sid}`, {
       method: "PATCH",

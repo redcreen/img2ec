@@ -32,6 +32,9 @@ class SourceImage(Base, TimestampMixin):
     # master_history[ratio] = [path_newest, ..., path_oldest]  始终包含 master_paths[ratio] 作首项
     master_history: Mapped[dict] = mapped_column(JSON, default=dict)
     derived_paths: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 用户在 UI 上拖拽得到的展示顺序；0 = 最前。变体内唯一，由前端 reorder
+    # endpoint 整体重写。SourceImage 默认按 order_index ASC 取出。
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # 每张图可独立指定模板；None = 走 SKU 默认 scene_id
     scene_id: Mapped[str | None] = mapped_column(
         ForeignKey("scenes.id", ondelete="SET NULL"), nullable=True,

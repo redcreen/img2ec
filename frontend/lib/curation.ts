@@ -100,8 +100,26 @@ export function useCuration(productId: string | undefined, variantId: string | u
     broadcast();
   };
 
+  /** 原图拖拽排序后调一次：把 main/detail 里所有 imgN:ratio key 按 idxMap
+   *  重写。idxMap[oldIdx] = newIdx。size_* 等不带索引的 key 保持原样。 */
+  const remapImageIndices = useCallback((idxMap: number[]) => {
+    if (!productId || !variantId) return;
+    const remap = (k: ImageKey): ImageKey => {
+      const m = k.match(/^img(\d+):(.+)$/);
+      if (!m) return k;
+      const oldIdx = parseInt(m[1]);
+      const newIdx = idxMap[oldIdx];
+      if (newIdx === undefined) return k;
+      return `img${newIdx}:${m[2]}` as ImageKey;
+    };
+    update((c) => ({
+      main: c.main.map(remap),
+      detail: c.detail.map(remap),
+    }));
+  }, [productId, variantId, update]);
+
   // Used by external callers to silently sync state changes (e.g., after apply)
   const _ = tick; void _;
 
-  return { main: cur.main, detail: cur.detail, isInMain, isInDetail, toggleMain, toggleDetail, reorderMain, reorderDetail, reset };
+  return { main: cur.main, detail: cur.detail, isInMain, isInDetail, toggleMain, toggleDetail, reorderMain, reorderDetail, reset, remapImageIndices };
 }

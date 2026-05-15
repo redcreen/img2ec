@@ -1,11 +1,13 @@
 "use client";
+import { useState } from "react";
 import type { SourceImage } from "@/lib/types";
 import { StatusPill } from "./StatusPill";
 
-/** 原图卡列表，含 checkbox 多选、状态、进度条、删除。 */
+/** 原图卡列表：checkbox 多选、状态、进度条、× 删除、拖拽排序。
+ *  拖拽用 native HTML5 DnD，左侧"⋮⋮"把手拖。drop 触发 onReorder(完整新顺序)。 */
 export function SourceImageList({
   images, selected, onToggleSelect, onSelectAll, onClearSelection,
-  onDelete, onZoomSource,
+  onDelete, onZoomSource, onReorder,
 }: {
   images: SourceImage[];
   selected: Set<string>;
@@ -14,7 +16,20 @@ export function SourceImageList({
   onClearSelection: () => void;
   onDelete: (iid: string, name: string) => void;
   onZoomSource: (img: SourceImage) => void;
+  onReorder?: (orderedIds: string[]) => void;
 }) {
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+
+  const performReorder = (from: number, to: number) => {
+    if (!onReorder) return;
+    if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+    const ids = images.map((i) => i.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    onReorder(ids);
+  };
+
   if (images.length === 0) {
     return <p className="text-xs opacity-60">该变体还没上传原图 — 点右上"+ 添加"</p>;
   }
@@ -33,17 +48,53 @@ export function SourceImageList({
           已选 {selected.size}/{images.length}
           {selected.size === 0 && ' · 点击"▶ 生成"会处理全部'}
         </span>
+        {onReorder && (
+          <span className="opacity-50 ml-auto">⋮⋮ 拖拽左侧把手可调整顺序</span>
+        )}
       </div>
       <div className="space-y-2 max-h-[480px] overflow-y-auto">
-        {images.map((img) => {
+        {images.map((img, i) => {
           const isSelected = selected.has(img.id);
+          const isDragging = dragFrom === i;
+          const isDropTarget = dragOver === i && dragFrom !== null && dragFrom !== i;
           return (
             <div
               key={img.id}
-              className={`group bg-zinc-950 border rounded p-2 flex items-center gap-3 relative ${
-                isSelected ? "border-blue-500" : "border-zinc-800"
-              }`}
+              onDragOver={(e) => {
+                if (!onReorder || dragFrom === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setDragOver(i);
+              }}
+              onDragLeave={() => setDragOver((c) => (c === i ? null : c))}
+              onDrop={(e) => {
+                if (!onReorder) return;
+                e.preventDefault();
+                const from = parseInt(e.dataTransfer.getData("text/plain"));
+                setDragOver(null);
+                setDragFrom(null);
+                if (!isNaN(from)) performReorder(from, i);
+              }}
+              className={`group bg-zinc-950 border rounded p-2 flex items-center gap-2 relative transition ${
+                isDropTarget
+                  ? "border-amber-400 ring-2 ring-amber-400/40"
+                  : isSelected ? "border-blue-500" : "border-zinc-800"
+              } ${isDragging ? "opacity-40" : ""}`}
             >
+              {/* 拖拽把手 */}
+              {onReorder && (
+                <span
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", String(i));
+                    setDragFrom(i);
+                  }}
+                  onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                  className="select-none text-zinc-500 hover:text-zinc-200 cursor-grab active:cursor-grabbing px-0.5 text-base flex-shrink-0"
+                  title="拖动调整顺序"
+                >⋮⋮</span>
+              )}
               <input
                 type="checkbox"
                 checked={isSelected}
@@ -51,6 +102,7 @@ export function SourceImageList({
                 className="w-4 h-4 accent-blue-500 cursor-pointer flex-shrink-0"
                 title="勾选后只生成选中的"
               />
+              <span className="text-[10px] opacity-50 w-5 text-right flex-shrink-0">{i + 1}</span>
               {img.src_url ? (
                 <img
                   src={img.src_url}

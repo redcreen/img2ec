@@ -25,6 +25,7 @@ class Variant(Base, TimestampMixin):
     product = relationship("SKU", back_populates="variants")
     images = relationship(
         "SourceImage", back_populates="variant", cascade="all, delete-orphan",
+        order_by="SourceImage.order_index",
     )
 
     @property

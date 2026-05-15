@@ -15,6 +15,7 @@ import { SkuHeader } from "@/components/SkuHeader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toProcessExtra, useGenConfig } from "@/lib/genConfig";
 import { UndoProvider, useUndo } from "@/lib/useUndoableDelete";
+import { useCuration } from "@/lib/curation";
 
 export default function SkuDetailPage() {
   return (
@@ -51,6 +52,8 @@ function SkuDetailPageInner() {
       setActiveVariantId(sku.variants[0].id);
     }
   }, [sku?.variants?.map(v => v.id).join("|")]);
+
+  const cur = useCuration(sid, activeVariantId);
 
   if (!sku) return <p className="opacity-60">加载中…</p>;
   const scene = scenes?.find(s => s.id === sku.scene_id);
@@ -114,6 +117,20 @@ function SkuDetailPageInner() {
     }
   };
 
+  const onReorderSourceImages = async (orderedIds: string[]) => {
+    if (!activeVariant) return;
+    const oldIds = activeVariant.images.map((im) => im.id);
+    // idxMap[oldIdx] = newIdx
+    const idxMap = oldIds.map((id) => orderedIds.indexOf(id));
+    cur.remapImageIndices(idxMap);
+    try {
+      await api.reorderImages(pid, sid, activeVariant.id, orderedIds);
+      await mutate();
+    } catch (e: any) {
+      alert("排序失败：" + e.message);
+      await mutate();  // 回滚到服务端真实顺序
+    }
+  };
   const onDeleteImage = (iid: string, name: string) => {
     undo.enqueue({
       id: `img:${iid}`,
@@ -256,6 +273,7 @@ function SkuDetailPageInner() {
                 onClearSelection={() => dispatchGen({ type: "clear_selection" })}
                 onDelete={onDeleteImage}
                 onZoomSource={(img) => img.src_url && setSourceLightbox({ src: img.src_url, alt: img.name })}
+                onReorder={onReorderSourceImages}
               />
             </div>
 

@@ -61,9 +61,11 @@ def upload_image(
     dst = src_d / final_name
     dst.write_bytes(raw_bytes)
 
+    next_order = len(variant.images)
     img = SourceImage(
         id=str(uuid.uuid4()), variant_id=variant.id, name=final_name, src_path=str(dst),
         status=ImageStatus.READY.value,
+        order_index=next_order,
     )
     db.add(img)
     if sku.status == SKUStatus.DRAFT.value:
@@ -108,6 +110,39 @@ def patch_image(
         if sc is None or sc.project_id != project_id:
             raise HTTPException(404, "scene not found in this project")
     img.scene_id = payload.scene_id
+    db.commit()
+    db.refresh(sku)
+    return _enrich(sku)
+
+
+class ReorderRequest(BaseModel):
+    image_ids: list[str]  # 期望的新顺序；必须正好等于该 variant 当前所有 image 的 id 集合
+
+
+@router.post("/{sku_id}/variants/{variant_id}/images/reorder", response_model=SKUOut)
+def reorder_images(
+    project_id: str, sku_id: str, variant_id: str,
+    payload: ReorderRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """整体重写该变体下原图的 order_index。前端拖拽完拿到完整新顺序 POST 过来。"""
+    sku = db.get(SKU, sku_id)
+    if sku is None or sku.project_id != project_id:
+        raise HTTPException(404, "sku not found")
+    v = db.get(Variant, variant_id)
+    if v is None or v.product_id != sku.id:
+        raise HTTPException(404, "variant not found")
+    current_ids = {im.id for im in v.images}
+    if set(payload.image_ids) != current_ids:
+        raise HTTPException(
+            400,
+            f"reorder payload mismatch: expected {sorted(current_ids)}, got {sorted(set(payload.image_ids))}",
+        )
+    if len(payload.image_ids) != len(set(payload.image_ids)):
+        raise HTTPException(400, "duplicate image id in payload")
+    pos = {iid: i for i, iid in enumerate(payload.image_ids)}
+    for im in v.images:
+        im.order_index = pos[im.id]
     db.commit()
     db.refresh(sku)
     return _enrich(sku)
