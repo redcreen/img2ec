@@ -124,11 +124,14 @@ function SkuDetailPageInner() {
   const onReorderSourceImages = async (orderedIds: string[]) => {
     if (!activeVariant) return;
     const oldIds = activeVariant.images.map((im) => im.id);
+    // 拖拽列表过滤掉了 pending-delete 的图 → 补回末尾，让后端集合校验通过
+    const hiddenIds = oldIds.filter((id) => !orderedIds.includes(id));
+    const fullOrder = [...orderedIds, ...hiddenIds];
     // idxMap[oldIdx] = newIdx
-    const idxMap = oldIds.map((id) => orderedIds.indexOf(id));
+    const idxMap = oldIds.map((id) => fullOrder.indexOf(id));
     cur.remapImageIndices(idxMap);
     try {
-      await api.reorderImages(pid, sid, activeVariant.id, orderedIds);
+      await api.reorderImages(pid, sid, activeVariant.id, fullOrder);
       await mutate();
     } catch (e: any) {
       toast.error("排序失败：" + e.message);
