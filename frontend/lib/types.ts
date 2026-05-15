@@ -110,4 +110,5 @@ export interface PlatformCopy {
   hashtags: string[];
   video_script: string;
   detail_template_url: string | null;
+  regenerating?: boolean;  // 异步重生成中（celery 任务跑完前 true）
 }

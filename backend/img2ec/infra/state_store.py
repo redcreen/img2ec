@@ -90,3 +90,20 @@ def pending_ratios_get(image_id: str) -> set[str]:
 
 def pending_ratios_clear(image_id: str) -> None:
     _r().delete(f"{_PENDING_RATIOS_PREFIX}{image_id}")
+
+
+_COPY_REGEN_PREFIX = "img2ec:copy_regen:"  # 变体级文案/详情页重生成中标记
+
+
+def copy_regen_set(variant_id: str, ttl_sec: int = 600) -> None:
+    """标记该变体正在重新生成文案（前端 polling 判断 spinner 是否继续）。
+    10 分钟 TTL 兜底，防 worker 挂了 redis 标记永留。"""
+    _r().setex(f"{_COPY_REGEN_PREFIX}{variant_id}", ttl_sec, "1")
+
+
+def copy_regen_get(variant_id: str) -> bool:
+    return bool(_r().exists(f"{_COPY_REGEN_PREFIX}{variant_id}"))
+
+
+def copy_regen_clear(variant_id: str) -> None:
+    _r().delete(f"{_COPY_REGEN_PREFIX}{variant_id}")

@@ -251,7 +251,7 @@ export const api = {
       `/api/projects/${pid}/skus/${sid}/variants/${vid}/copy`,
     ),
   regenerateCopy: (pid: string, sid: string, vid: string) =>
-    req<import("./types").PlatformCopy[]>(
+    req<{ queued: boolean; variant_id?: string; already_running?: boolean }>(
       `/api/projects/${pid}/skus/${sid}/variants/${vid}/copy/regenerate`,
       { method: "POST" },
     ),

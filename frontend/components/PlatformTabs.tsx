@@ -36,19 +36,25 @@ export function PlatformTabs({
   const toast = useToast();
   const images = variant.images;
   const cur = useCuration(skuId, variant.id);
-  // copy 没就绪时（数量 < 3）每 3 秒轮询；齐了停轮询节省请求
+  // 三种轮询触发：copy 数量 <3；任一 copy.regenerating（异步重生成中）；否则停
   const { data: copyList, mutate, isLoading } = useSWR(
     `copy-${skuId}-${variant.id}`,
     () => api.listCopy(pid, skuId, variant.id),
     {
-      refreshInterval: (latest: any) =>
-        latest && Array.isArray(latest) && latest.length >= 3 ? 0 : 3000,
+      refreshInterval: (latest: any) => {
+        if (!latest || !Array.isArray(latest)) return 3000;
+        if (latest.length < 3) return 3000;
+        if (latest.some((c: any) => c.regenerating)) return 3000;
+        return 0;
+      },
     } as any,
   );
   const [activePlatform, setActivePlatform] = useState<Platform>("douyin");
-  const [regenerating, setRegenerating] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+
+  // 服务端 regenerating 标志（任一 copy 在重生成中即视为整体在跑）
+  const regenerating = !!copyList?.some((c) => c.regenerating);
 
   const realCopy = copyList?.find((c) => c.platform === activePlatform);
   // 文案没就绪时给一份占位，让仿平台预览框架直接显示出来 — 比"文案未就绪"
@@ -68,14 +74,16 @@ export function PlatformTabs({
   };
 
   const onRegenCopy = async () => {
-    setRegenerating(true);
     try {
-      await api.regenerateCopy(pid, skuId, variant.id);
+      const r = await api.regenerateCopy(pid, skuId, variant.id);
+      if (r.already_running) {
+        toast.info("已经在生成中，请稍等…");
+      } else {
+        toast.info("已加入队列，约 1-3 分钟出结果（页面会自动刷新）");
+      }
       await mutate();
     } catch (e: any) {
-      toast.error("重新生成失败：" + e.message);
-    } finally {
-      setRegenerating(false);
+      toast.error("入队失败：" + e.message);
     }
   };
 

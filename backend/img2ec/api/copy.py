@@ -1,13 +1,9 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from img2ec.core.copy_gen import generate_copy_for_sku
 from img2ec.db import get_session
 from img2ec.infra.fs_layout import slug as fs_slug
-from img2ec.infra.llm_provider import CodexCLIProvider, LLMProviderError
-from img2ec.models import PlatformOutputCopy, Project, Scene, SKU, Variant
+from img2ec.models import PlatformOutputCopy, Project, SKU, Variant
 from img2ec.schemas.copy import CopyOut
 
 router = APIRouter(
@@ -63,8 +59,10 @@ def list_copy(
     project_id: str, sku_id: str, variant_id: str,
     db: Session = Depends(get_session),
 ) -> list[CopyOut]:
+    from img2ec.infra import state_store
     variant = _get_variant_or_404(db, project_id, sku_id, variant_id)
     rows = db.query(PlatformOutputCopy).filter_by(variant_id=variant.id).all()
+    regenerating = state_store.copy_regen_get(variant.id)
     return [
         CopyOut(
             id=row.id, platform=row.platform,
@@ -76,58 +74,37 @@ def list_copy(
             video_script=row.video_script,
             created_at=row.created_at, updated_at=row.updated_at,
             detail_template_url=_detail_template_url(db, variant, row.platform),
+            regenerating=regenerating,
         )
         for row in rows
     ]
 
 
-@router.post("/regenerate", response_model=list[CopyOut], status_code=201)
+@router.post("/regenerate", status_code=202)
 def regenerate(
     project_id: str, sku_id: str, variant_id: str,
     db: Session = Depends(get_session),
-) -> list[CopyOut]:
+) -> dict:
+    """触发文案 + 详情页拼图异步重生成。
+    Codex LLM 调用 1-3 分钟，做成 fire-and-forget。前端轮询 GET /copy 看
+    copy.regenerating；标志在 worker 完成时清掉。
+    """
+    from img2ec.infra import state_store
+
     variant = _get_variant_or_404(db, project_id, sku_id, variant_id)
-    images = list(variant.images)
-    if not images:
+    if not variant.images:
         raise HTTPException(400, "variant has no source images")
-    # 找第一张有 1x1 master 的图 —— 不要求是 images[0]（它可能失败了）
     ref_img = next(
-        (im for im in images if im.master_paths and im.master_paths.get("1x1")),
+        (im for im in variant.images
+         if im.master_paths and im.master_paths.get("1x1")),
         None,
     )
     if ref_img is None:
         raise HTTPException(400, "no master 1x1 yet — process at least one image first")
-    master = ref_img.master_paths["1x1"]
+    if state_store.copy_regen_get(variant.id):
+        return {"queued": True, "already_running": True}
 
-    sku = variant.product
-    effective_scene_id = variant.scene_id or sku.scene_id
-    scene = db.get(Scene, effective_scene_id) if effective_scene_id else None
-
-    # 该变体下旧行全部丢弃，重新生成
-    db.query(PlatformOutputCopy).filter_by(variant_id=variant.id).delete()
-
-    try:
-        result = generate_copy_for_sku(
-            provider=CodexCLIProvider(),
-            image_path=Path(master),
-            sku_name=sku.name,
-            scene_name=scene.name if scene else "",
-            scene_category=scene.category if scene else "",
-        )
-    except LLMProviderError as e:
-        raise HTTPException(502, f"LLM error: {e}")
-
-    from img2ec.tasks.pipeline_tasks import _persist_copy, _render_detail_pages
-    from img2ec.infra.fs_layout import sku_dir as sku_dir_fn
-    _persist_copy(db, variant.id, result)
-
-    # 同步重渲详情页拼图（用 ref_img 的所有 ratio masters）
-    proj = sku.project
-    if proj:
-        try:
-            skud = sku_dir_fn(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
-            _render_detail_pages(db, variant.id, skud, ref_img.master_paths or {})
-        except Exception:
-            pass  # 详情页失败不挡文案
-
-    return list_copy(project_id, sku_id, variant_id, db)
+    state_store.copy_regen_set(variant.id)
+    from img2ec.tasks.copy_tasks import regenerate_copy_task
+    regenerate_copy_task.delay(project_id, sku_id, variant_id)
+    return {"queued": True, "variant_id": variant_id}
