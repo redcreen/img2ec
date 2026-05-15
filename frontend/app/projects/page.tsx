@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import { NewProjectModal } from "@/components/NewProjectModal";
 import type { Project } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 
 export default function ProjectsPage() {
   const { data, mutate, isLoading } = useSWR("projects", () => api.listProjects());
@@ -52,6 +53,7 @@ export default function ProjectsPage() {
 function ProjectCard({
   p, onRename, onDeleted,
 }: { p: Project; onRename: () => void; onDeleted: () => void }) {
+  const toast = useToast();
   const [deleting, setDeleting] = useState(false);
   const onDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -67,7 +69,7 @@ function ProjectCard({
       await api.deleteProject(p.id);
       onDeleted();
     } catch (err: any) {
-      alert("删除失败：" + err.message);
+      toast.error("删除失败：" + err.message);
     } finally {
       setDeleting(false);
     }

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { Scene } from "@/lib/types";
 import type { SceneMode, ReferenceImage } from "@/lib/genConfig";
 import { appendPrompt, getPresets } from "@/lib/promptPresets";
+import { useToast } from "@/lib/useToast";
 import { Lightbox } from "./Lightbox";
 import { SceneSelectModal } from "./SceneSelectModal";
 
@@ -38,6 +39,7 @@ export function PromptPreview({
   onReferenceChange: (r: ReferenceImage | null) => void;
   onSceneChanged?: () => void;
 }) {
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [activeRatio, setActiveRatio] = useState<string>("1x1");
   const [coverLightbox, setCoverLightbox] = useState(false);
@@ -66,7 +68,7 @@ export function PromptPreview({
       const r = await api.uploadReferenceImage(pid, f);
       onReferenceChange({ path: r.path, url: r.url, name: r.name });
     } catch (e: any) {
-      alert("参考图上传失败：" + e.message);
+      toast.error("参考图上传失败：" + e.message);
     } finally {
       setUploadingRef(false);
     }

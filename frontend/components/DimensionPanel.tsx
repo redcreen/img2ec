@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import type { SKU, Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 
 const STYLES = [
   { key: "white", label: "白底尺寸图" },
@@ -15,6 +16,7 @@ export function DimensionPanel({
   pid: string; sid: string; sku: SKU; variant: Variant;
   onChanged: () => void;
 }) {
+  const toast = useToast();
   const [length, setLength] = useState<string>(sku.length_cm?.toString() ?? "");
   const [width, setWidth] = useState<string>(sku.width_cm?.toString() ?? "");
   const [height, setHeight] = useState<string>(sku.height_cm?.toString() ?? "");
@@ -58,7 +60,7 @@ export function DimensionPanel({
       });
       onChanged();
     } catch (e: any) {
-      alert("保存失败：" + e.message);
+      toast.error("保存失败：" + e.message);
     } finally {
       setBusy(null);
     }
@@ -66,11 +68,11 @@ export function DimensionPanel({
 
   const onGenerate = async () => {
     if (!allFilled) {
-      alert("三项尺寸都需要填写");
+      toast.warn("三项尺寸都需要填写");
       return;
     }
     if (selected.size === 0) {
-      alert("请至少勾选一种尺寸图风格");
+      toast.warn("请至少勾选一种尺寸图风格");
       return;
     }
     if (dirty) {
@@ -81,7 +83,7 @@ export function DimensionPanel({
           height_cm: parseDim(height),
         });
       } catch (e: any) {
-        alert("保存失败：" + e.message);
+        toast.error("保存失败：" + e.message);
         return;
       }
     }
@@ -90,7 +92,7 @@ export function DimensionPanel({
       await api.regenerateDimension(pid, sid, Array.from(selected), variant.id);
       onChanged();
     } catch (e: any) {
-      alert("提交失败：" + e.message);
+      toast.error("提交失败：" + e.message);
     } finally {
       setBusy(null);
     }

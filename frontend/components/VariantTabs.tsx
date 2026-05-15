@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import type { Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 import { StatusPill } from "./StatusPill";
 
 export function VariantTabs({
@@ -14,6 +15,7 @@ export function VariantTabs({
   onSelect: (vid: string) => void;
   onChanged: () => void;
 }) {
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,7 +32,7 @@ export function VariantTabs({
       await onChanged();
       onSelect(v.id);
     } catch (e: any) {
-      alert("创建失败：" + e.message);
+      toast.error("创建失败：" + e.message);
     } finally {
       setBusy(false);
     }
@@ -43,13 +45,13 @@ export function VariantTabs({
       await api.renameVariant(pid, sid, v.id, next.trim());
       onChanged();
     } catch (e: any) {
-      alert("重命名失败：" + e.message);
+      toast.error("重命名失败：" + e.message);
     }
   };
 
   const deleteVariant = async (v: Variant) => {
     if (variants.length <= 1) {
-      alert("不能删除唯一的变体");
+      toast.warn("不能删除唯一的变体");
       return;
     }
     if (!confirm(`删除变体「${v.color_name}」？图片不会被回收（手动清理），但变体记录会丢失。`)) return;
@@ -61,7 +63,7 @@ export function VariantTabs({
       }
       onChanged();
     } catch (e: any) {
-      alert("删除失败：" + e.message);
+      toast.error("删除失败：" + e.message);
     }
   };
 

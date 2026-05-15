@@ -16,6 +16,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toProcessExtra, useGenConfig } from "@/lib/genConfig";
 import { UndoProvider, useUndo } from "@/lib/useUndoableDelete";
 import { useCuration } from "@/lib/curation";
+import { useToast } from "@/lib/useToast";
 
 export default function SkuDetailPage() {
   return (
@@ -31,6 +32,7 @@ function SkuDetailPageInner() {
   const { pid, sid } = useParams<{ pid: string; sid: string }>();
   const router = useRouter();
   const undo = useUndo();
+  const toast = useToast();
   const { data: sku, mutate } = useSWR(
     sid ? `sku-${sid}` : null,
     () => api.getSku(pid, sid),
@@ -96,7 +98,7 @@ function SkuDetailPageInner() {
       // 给后端 ~3 秒兜底盲窗（mutate 已刷新，正常 isBusy 已 true，此处用 setTimeout 兜底防极端情况）
       setTimeout(() => setSubmitting(false), 3000);
     } catch (e: any) {
-      alert("提交失败：" + e.message);
+      toast.error("提交失败：" + e.message);
       setSubmitting(false);
     }
   };
@@ -110,7 +112,7 @@ function SkuDetailPageInner() {
       }
       mutate();
     } catch (e: any) {
-      alert("上传失败：" + e.message);
+      toast.error("上传失败：" + e.message);
     } finally {
       setUploading(false);
       if (uploadInputRef.current) uploadInputRef.current.value = "";
@@ -127,7 +129,7 @@ function SkuDetailPageInner() {
       await api.reorderImages(pid, sid, activeVariant.id, orderedIds);
       await mutate();
     } catch (e: any) {
-      alert("排序失败：" + e.message);
+      toast.error("排序失败：" + e.message);
       await mutate();  // 回滚到服务端真实顺序
     }
   };
@@ -140,7 +142,7 @@ function SkuDetailPageInner() {
           await api.deleteImage(pid, sid, iid);
           mutate();
         } catch (e: any) {
-          alert("删除原图失败：" + e.message);
+          toast.error("删除原图失败：" + e.message);
           mutate();
         }
       },
@@ -150,7 +152,7 @@ function SkuDetailPageInner() {
   const onCancel = async () => {
     if (!confirm("停止处理？已生成的图会保留，未生成的不再继续。")) return;
     try { await api.cancelSku(pid, sid); mutate(); }
-    catch (e: any) { alert("停止失败：" + e.message); }
+    catch (e: any) { toast.error("停止失败：" + e.message); }
   };
   const onDelete = async () => {
     if (!confirm(`删除 SKU "${sku.name}"？`)) return;

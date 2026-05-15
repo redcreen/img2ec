@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { api } from "@/lib/api";
 import { useCuration } from "@/lib/curation";
 import type { PlatformCopy, SourceImage, Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 import { Lightbox } from "./Lightbox";
 import { PlatformPreviewMock } from "./PlatformPreviewMock";
 
@@ -32,6 +33,7 @@ export function PlatformTabs({
   onSelectVariant?: (vid: string) => void;
   onChanged?: () => void;
 }) {
+  const toast = useToast();
   const images = variant.images;
   const cur = useCuration(skuId, variant.id);
   // copy 没就绪时（数量 < 3）每 3 秒轮询；齐了停轮询节省请求
@@ -56,7 +58,7 @@ export function PlatformTabs({
       await api.regenerateCopy(pid, skuId, variant.id);
       await mutate();
     } catch (e: any) {
-      alert("重新生成失败：" + e.message);
+      toast.error("重新生成失败：" + e.message);
     } finally {
       setRegenerating(false);
     }
@@ -105,7 +107,7 @@ export function PlatformTabs({
         detail_keys: cur.detail,
       });
     } catch (e: any) {
-      alert(e.message || "下载失败");
+      toast.error(e.message || "下载失败");
     } finally {
       setDownloading(false);
     }
@@ -119,7 +121,7 @@ export function PlatformTabs({
         detail_keys: cur.detail,
       });
     } catch (e: any) {
-      alert(e.message || "下载失败");
+      toast.error(e.message || "下载失败");
     } finally {
       setDownloading(false);
     }

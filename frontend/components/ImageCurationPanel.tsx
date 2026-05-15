@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useCuration, type ImageKey } from "@/lib/curation";
 import type { SKU, Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 
 const RATIO_LABEL: Record<string, string> = {
   "1x1": "1:1", "long": "长图", "3x4": "3:4", "9x16": "9:16", "16x9": "16:9",
@@ -29,6 +30,7 @@ export function ImageCurationPanel({
   pid, sid, sku, variant, onChanged,
 }: { pid: string; sid: string; sku: SKU; variant: Variant; onChanged: () => void }) {
   const cur = useCuration(sid, variant.id);
+  const toast = useToast();
   const [recomposing, setRecomposing] = useState(false);
   const [thumbBusy, setThumbBusy] = useState(false);
 
@@ -101,7 +103,7 @@ export function ImageCurationPanel({
     if (keys.length === 0) return;
     const hasOneByOne = keys.some((k) => k === "1x1" || k.endsWith(":1x1"));
     if (!hasOneByOne) {
-      alert("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。");
+      toast.warn("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。");
       return;
     }
     setRecomposing(true);
@@ -109,7 +111,7 @@ export function ImageCurationPanel({
       await api.composeDetail(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
-      alert("详情页重渲失败：" + e.message);
+      toast.error("详情页重渲失败：" + e.message);
     } finally {
       setRecomposing(false);
     }
@@ -121,7 +123,7 @@ export function ImageCurationPanel({
       await api.setVariantThumbnails(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
-      alert("设置 SKU 选图失败：" + e.message);
+      toast.error("设置 SKU 选图失败：" + e.message);
     } finally {
       setThumbBusy(false);
     }

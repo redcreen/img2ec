@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import type { SKU, Scene, SourceImage, Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 import { PathBar } from "./PathBar";
 import { StatusPill } from "./StatusPill";
 import { ConcurrencyControl } from "./ConcurrencyControl";
@@ -32,6 +33,7 @@ export function SkuHeader({
   onDelete: () => void;
   onAfterRename: () => Promise<void> | void;
 }) {
+  const toast = useToast();
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -43,7 +45,7 @@ export function SkuHeader({
       await onAfterRename();
       setRenaming(false);
     } catch (err: any) {
-      alert(err.message || "改名失败");
+      toast.error(err.message || "改名失败");
     }
   };
 

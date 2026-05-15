@@ -5,6 +5,7 @@ import type { PlatformCopy, SourceImage, Variant, SKU } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Lightbox } from "./Lightbox";
 import { useCuration } from "@/lib/curation";
+import { useToast } from "@/lib/useToast";
 
 type Platform = "douyin" | "shipinhao" | "xiaohongshu";
 
@@ -31,6 +32,7 @@ export function PlatformPreviewMock({
   onChanged: () => void;
 }) {
   const cur = useCuration(productId, variant.id);
+  const toast = useToast();
 
   // 支持 img<idx>:<ratio> / size_<style> / 旧式 <ratio>（兼容 = img0:ratio）
   const resolve = (k: string): string | undefined => {
@@ -145,7 +147,7 @@ export function PlatformPreviewMock({
     // 后端硬约束：image_keys 里必须有一张 1x1 master。前端先拦，给个友好提示
     const hasOneByOne = ks.some((k) => k === "1x1" || k.endsWith(":1x1"));
     if (!hasOneByOne) {
-      alert("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。\n" +
+      toast.warn("详情页必须有一张 1:1 主图 — 当前列表里没有任何能解析为 1x1 的图。\n" +
         "请先在 MASTER 资产里给某张原图生成 1x1，再加入详情图列表。");
       return;
     }
@@ -156,7 +158,7 @@ export function PlatformPreviewMock({
       globalMutate(`copy-${sid}-${variant.id}`);
       onChanged();
     } catch (e: any) {
-      alert("应用到详情页失败：" + e.message);
+      toast.error("应用到详情页失败：" + e.message);
     } finally {
       setComposing(false);
     }
@@ -217,7 +219,7 @@ export function PlatformPreviewMock({
       await api.setVariantThumbnails(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
-      alert("色卡排序失败：" + e.message);
+      toast.error("色卡排序失败：" + e.message);
     }
   };
 

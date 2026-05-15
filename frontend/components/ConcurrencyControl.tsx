@@ -2,12 +2,14 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
+import { useToast } from "@/lib/useToast";
 
 /** 并发数控件（顶栏，停止按钮前）。
  *  - 显示 Celery worker pool 当前大小
  *  - – / + 调整（1–16），即时 pool_grow / pool_shrink
  */
 export function ConcurrencyControl() {
+  const toast = useToast();
   const { data, mutate } = useSWR("concurrency", () => api.getConcurrency(), {
     refreshInterval: 8000,
   });
@@ -30,7 +32,7 @@ export function ConcurrencyControl() {
       await api.setConcurrency(next);
       await mutate();
     } catch (e: any) {
-      alert("调整并发失败：" + e.message);
+      toast.error("调整并发失败：" + e.message);
       setOptimistic(null);
     } finally {
       setBusy(false);

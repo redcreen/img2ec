@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useCuration, type ImageKey } from "@/lib/curation";
 import type { SourceImage, Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 import { useUndo } from "@/lib/useUndoableDelete";
 import { Lightbox } from "./Lightbox";
 import { RatedImage } from "./RatedImage";
@@ -46,6 +47,7 @@ export function MasterGallery({
   onChanged: () => void;
 }) {
   const cur = useCuration(sid, variant.id);
+  const toast = useToast();
   const undo = useUndo();
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [active, setActive] = useState<ActiveTab>({ kind: "image", idx: 0 });
@@ -117,7 +119,7 @@ export function MasterGallery({
       await api.setVariantThumbnails(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
-      alert("更新 SKU 选图失败：" + e.message);
+      toast.error("更新 SKU 选图失败：" + e.message);
     } finally {
       setThumbBusy(false);
     }
@@ -147,7 +149,7 @@ export function MasterGallery({
           await api.deleteAllMastersForImage(pid, sid, img.id);
           onChanged();
         } catch (e: any) {
-          alert("批删失败：" + e.message);
+          toast.error("批删失败：" + e.message);
           onChanged();
         }
       },
@@ -162,7 +164,7 @@ export function MasterGallery({
     try {
       await api.regenerateImage(pid, sid, img.id, { ratios });
       onChanged();
-    } catch (e: any) { alert("提交失败：" + e.message); }
+    } catch (e: any) { toast.error("提交失败：" + e.message); }
     finally { setTabBusy(false); }
   };
 
@@ -173,7 +175,7 @@ export function MasterGallery({
     try {
       await api.regenerateImage(pid, sid, img.id, { ratios: [ratio] });
       onChanged();
-    } catch (e: any) { alert("提交失败：" + e.message); }
+    } catch (e: any) { toast.error("提交失败：" + e.message); }
     finally { setTabBusy(false); }
   };
   const onDeleteAllDim = () => {
@@ -185,7 +187,7 @@ export function MasterGallery({
           await api.deleteAllDimension(pid, sid, variant.id);
           onChanged();
         } catch (e: any) {
-          alert("批删失败：" + e.message);
+          toast.error("批删失败：" + e.message);
           onChanged();
         }
       },
@@ -194,7 +196,7 @@ export function MasterGallery({
   };
   const onRegenAllDim = async () => {
     if (tabBusy) return;
-    if (!variant.images.length) { alert("没有原图"); return; }
+    if (!variant.images.length) { toast.warn("没有原图"); return; }
     // 仅重生**已存在**的 (style, img_idx) 组合
     const combos: Array<{ style: string; idx: number }> = [];
     for (const k of Object.keys(variant.dimension_urls || {})) {
@@ -202,7 +204,7 @@ export function MasterGallery({
       if (m) combos.push({ style: m[1], idx: parseInt(m[2]) });
     }
     if (combos.length === 0) {
-      alert("当前还没生成过任何尺寸图。请到上方「生成规格」勾选尺寸图风格再生成。");
+      toast.warn("当前还没生成过任何尺寸图。请到上方「生成规格」勾选尺寸图风格再生成。");
       return;
     }
     setTabBusy(true);
@@ -216,7 +218,7 @@ export function MasterGallery({
         await api.regenerateDimension(pid, sid, [style], variant.id, indices.sort());
       }
       onChanged();
-    } catch (e: any) { alert("提交失败：" + e.message); }
+    } catch (e: any) { toast.error("提交失败：" + e.message); }
     finally { setTabBusy(false); }
   };
 
@@ -232,7 +234,7 @@ export function MasterGallery({
           await api.deleteMasterVersion(pid, sid, { image_id: imageId, ratio, path });
           onChanged();
         } catch (e: any) {
-          alert("删除失败：" + e.message);
+          toast.error("删除失败：" + e.message);
           onChanged();
         }
       },
@@ -249,7 +251,7 @@ export function MasterGallery({
           await api.deleteDimensionImage(pid, sid, { variant_id: variant.id, style, image_idx: imageIdx });
           onChanged();
         } catch (e: any) {
-          alert("删除失败：" + e.message);
+          toast.error("删除失败：" + e.message);
           onChanged();
         }
       },

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useCuration, type ImageKey } from "@/lib/curation";
 import type { Variant } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 import { Lightbox } from "./Lightbox";
 
 const RATIO_LABEL: Record<string, string> = {
@@ -22,6 +23,7 @@ export function ImageLibraryPanel({
   pid, sid, variant, onChanged,
 }: { pid: string; sid: string; variant: Variant; onChanged: () => void }) {
   const cur = useCuration(sid, variant.id);
+  const toast = useToast();
   const [thumbBusy, setThumbBusy] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
@@ -83,7 +85,7 @@ export function ImageLibraryPanel({
       await api.setVariantThumbnails(pid, sid, variant.id, keys);
       onChanged();
     } catch (e: any) {
-      alert("更新 SKU 选图失败：" + e.message);
+      toast.error("更新 SKU 选图失败：" + e.message);
     } finally {
       setThumbBusy(false);
     }

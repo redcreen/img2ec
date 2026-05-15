@@ -8,9 +8,11 @@ import { SceneEditorModal } from "@/components/SceneEditorModal";
 import { AIKeywordsModal } from "@/components/AIKeywordsModal";
 import { AIReferenceModal } from "@/components/AIReferenceModal";
 import { FESTIVALS, type Scene } from "@/lib/types";
+import { useToast } from "@/lib/useToast";
 
 export default function ScenesPage() {
   const { pid } = useParams<{ pid: string }>();
+  const toast = useToast();
   // 当有「生成中」占位卡片时，自动轮询；否则不轮询
   const { data: scenes, mutate } = useSWR(
     pid ? `scenes-${pid}` : null,
@@ -34,7 +36,7 @@ export default function ScenesPage() {
       await api.deleteScene(pid, sc.id);
       await mutate();
     } catch (e: any) {
-      alert("删除失败：" + e.message);
+      toast.error("删除失败：" + e.message);
     }
   };
 
@@ -46,7 +48,7 @@ export default function ScenesPage() {
       await api.aiBatchGenerate(pid, { festival: festFilter, count: 10 });
       await mutate();
     } catch (e: any) {
-      alert("启动批量生成失败：" + e.message);
+      toast.error("启动批量生成失败：" + e.message);
     } finally {
       setBatching(false);
     }
@@ -58,7 +60,7 @@ export default function ScenesPage() {
       await api.importDefaultScenes(pid);
       await mutate();
     } catch (e: any) {
-      alert("导入失败：" + e.message);
+      toast.error("导入失败：" + e.message);
     } finally {
       setImporting(false);
     }
