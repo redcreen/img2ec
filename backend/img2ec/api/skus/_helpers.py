@@ -52,10 +52,35 @@ def _dimension_image_path_for_variant(variant, style: str = "white", image_idx: 
 _DIM_STATE: dict[str, dict[str, dict]] = {}
 
 
+def _aggregate_variant_status(variant) -> str:
+    """从 variant.images 聚合变体状态（同 SKU 算法但范围限本变体）。
+    - 无图 → draft (编辑中)
+    - 任何图 in-flight → running
+    - 任何 failed → error
+    - 所有 done → done
+    - 其余 → ready
+    """
+    from img2ec.models import ImageStatus
+    if not variant.images:
+        return "draft"
+    statuses = {i.status for i in variant.images}
+    in_flight = {ImageStatus.PENDING.value, ImageStatus.CUTTING.value,
+                 ImageStatus.GENERATING.value, ImageStatus.COMPOSING.value}
+    if statuses & in_flight:
+        return "running"
+    if ImageStatus.FAILED.value in statuses:
+        return "error"
+    if statuses == {ImageStatus.DONE.value}:
+        return "done"
+    return "ready"
+
+
 def _enrich_variant(variant) -> dict:
-    """序列化一个 variant 并注入计算字段（图片 URL、尺寸图 URL/状态）。"""
+    """序列化一个 variant 并注入计算字段（图片 URL、尺寸图 URL/状态、聚合 status）。"""
     from img2ec.schemas.sku import VariantOut
     out = VariantOut.model_validate(variant).model_dump()
+    # DB 里 variant.status 只在创建时写过 "draft"，运行时永不更新 —— 这里实时算
+    out["status"] = _aggregate_variant_status(variant)
     paths = variant.sku_thumb_paths or ([variant.sku_thumb_path] if variant.sku_thumb_path else [])
     out["sku_thumb_paths"] = paths
     out["sku_thumb_urls"] = [_path_to_url(p) or "" for p in paths]
