@@ -50,7 +50,22 @@ export function PlatformTabs({
   const [downloading, setDownloading] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
-  const copy = copyList?.find((c) => c.platform === activePlatform);
+  const realCopy = copyList?.find((c) => c.platform === activePlatform);
+  // 文案没就绪时给一份占位，让仿平台预览框架直接显示出来 — 比"文案未就绪"
+  // 一行字更直观，用户能看到布局是怎样的
+  const copy: PlatformCopy = realCopy ?? {
+    id: "",
+    platform: activePlatform,
+    title: "（暂无文案）",
+    subtitle: "",
+    selling_points: [],
+    description_md: "",
+    category_path: "",
+    keywords: [],
+    hashtags: [],
+    video_script: "",
+    detail_template_url: null,
+  };
 
   const onRegenCopy = async () => {
     setRegenerating(true);
@@ -186,31 +201,34 @@ export function PlatformTabs({
           <div className="flex flex-wrap gap-6 items-start">
             {/* 左：仿平台预览 — 宽度由内容自身决定（≈660px） */}
             <section className="flex-shrink-0">
-              <h4 className="text-[10px] uppercase opacity-60 mb-2">仿平台预览</h4>
-              {copy ? (
-                <PlatformPreviewMock
-                  platform={activePlatform}
-                  image={firstImg}
-                  copy={copy}
-                  productId={skuId}
-                  variant={variant}
-                  pid={pid}
-                  sid={skuId}
-                  sku={sku}
-                  activeVariantId={activeVariantId}
-                  onSelectVariant={onSelectVariant}
-                  onChanged={() => { mutate(); onChanged?.(); }}
-                />
-              ) : (
-                <p className="text-xs opacity-60">文案未就绪 — 处理完图后会自动生成或点右上"重新生成文案"</p>
-              )}
+              <h4 className="text-[10px] uppercase opacity-60 mb-2 flex items-center gap-2">
+                <span>仿平台预览</span>
+                {!realCopy && (
+                  <span className="text-[10px] normal-case opacity-60">
+                    {isLoading ? "文案加载中…" : "文案待生成（处理完图自动生成，或点右上「重新生成文案」）"}
+                  </span>
+                )}
+              </h4>
+              <PlatformPreviewMock
+                platform={activePlatform}
+                image={firstImg}
+                copy={copy}
+                productId={skuId}
+                variant={variant}
+                pid={pid}
+                sid={skuId}
+                sku={sku}
+                activeVariantId={activeVariantId}
+                onSelectVariant={onSelectVariant}
+                onChanged={() => { mutate(); onChanged?.(); }}
+              />
             </section>
 
             {/* 右：文案（flex，最小 320px） */}
             <section className="flex-1 min-w-[320px] space-y-4">
               <CopySection
                 platform={activePlatform}
-                copy={copy}
+                copy={realCopy}
                 isLoading={isLoading}
                 onZoom={(src) => setLightbox({ src, alt: "detail" })}
               />
