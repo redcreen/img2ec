@@ -5,9 +5,11 @@ import { StatusPill } from "./StatusPill";
 
 /** 原图卡列表：checkbox 多选、状态、进度条、× 删除、拖拽排序。
  *  拖拽用 native HTML5 DnD，左侧"⋮⋮"把手拖。drop 触发 onReorder(完整新顺序)。 */
+const IN_FLIGHT = new Set(["pending", "cutting", "generating", "composing"]);
+
 export function SourceImageList({
   images, selected, onToggleSelect, onSelectAll, onClearSelection,
-  onDelete, onZoomSource, onReorder,
+  onDelete, onZoomSource, onReorder, skuCancelled = false,
 }: {
   images: SourceImage[];
   selected: Set<string>;
@@ -17,6 +19,7 @@ export function SourceImageList({
   onDelete: (iid: string, name: string) => void;
   onZoomSource: (img: SourceImage) => void;
   onReorder?: (orderedIds: string[]) => void;
+  skuCancelled?: boolean;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
@@ -117,14 +120,23 @@ export function SourceImageList({
               <div className="flex-1 min-w-0">
                 <div className="text-xs truncate" title={img.name}>{img.name}</div>
                 <div className="text-[10px] opacity-55 mt-1 flex items-center gap-1.5">
-                  <StatusPill status={img.status} />
+                  <StatusPill
+                    status={
+                      skuCancelled && IN_FLIGHT.has(img.status)
+                        ? "cancelled"
+                        : img.status
+                    }
+                  />
+                  {skuCancelled && IN_FLIGHT.has(img.status) && (
+                    <span className="text-[9px] opacity-50">收尾中…</span>
+                  )}
                 </div>
                 {img.err_msg && (
                   <div className="text-[10px] text-red-400 truncate mt-0.5" title={img.err_msg}>
                     {img.err_msg}
                   </div>
                 )}
-                {["cutting", "generating", "composing"].includes(img.status) && (
+                {!skuCancelled && ["cutting", "generating", "composing"].includes(img.status) && (
                   <div className="h-1 bg-zinc-800 rounded mt-1.5 overflow-hidden">
                     <div
                       className="h-full bg-amber-500 transition-all"

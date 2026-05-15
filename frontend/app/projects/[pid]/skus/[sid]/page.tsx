@@ -151,8 +151,19 @@ function SkuDetailPageInner() {
   };
   const onCancel = async () => {
     if (!confirm("停止处理？已生成的图会保留，未生成的不再继续。")) return;
-    try { await api.cancelSku(pid, sid); mutate(); }
-    catch (e: any) { toast.error("停止失败：" + e.message); }
+    try {
+      const r: any = await api.cancelSku(pid, sid);
+      mutate();
+      const pending = r?.cancelled_pending ?? 0;
+      const flying = r?.in_flight ?? 0;
+      if (flying > 0) {
+        toast.info(`已停止 ${pending} 张排队图，正在跑的 ${flying} 张会在当前阶段结束后收尾`);
+      } else {
+        toast.success(`已停止（取消队列 ${pending} 张）`);
+      }
+    } catch (e: any) {
+      toast.error("停止失败：" + e.message);
+    }
   };
   const onDelete = async () => {
     if (!confirm(`删除 SKU "${sku.name}"？`)) return;
@@ -276,6 +287,7 @@ function SkuDetailPageInner() {
                 onDelete={onDeleteImage}
                 onZoomSource={(img) => img.src_url && setSourceLightbox({ src: img.src_url, alt: img.name })}
                 onReorder={onReorderSourceImages}
+                skuCancelled={sku.status === "cancelled"}
               />
             </div>
 

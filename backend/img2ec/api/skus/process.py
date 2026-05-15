@@ -157,15 +157,36 @@ def process_sku(
 
 @router.post("/{sku_id}/cancel", status_code=200)
 def cancel_sku(project_id: str, sku_id: str, db: Session = Depends(get_session)) -> dict:
-    """请求停止处理。Pipeline 会在下一个 master 完成后检测到并 bail；已生成的 master 保留。"""
+    """请求停止处理。
+    - 立刻把所有 PENDING（还在队列里等的）图标 FAILED，清掉 Redis pending_ratios —
+      这些 worker 还没启动，不会被覆盖。
+    - 已经在跑的（cutting/generating/composing）由 worker 在下个 progress 回调时
+      看到 sku.status=cancelled 自行 bail。已生成的 master 保留。
+    """
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
     if sku.status != SKUStatus.RUNNING.value:
         raise HTTPException(400, f"only running SKU can be cancelled (current: {sku.status})")
     sku.status = "cancelled"
+
+    from img2ec.infra import state_store
+    cancelled_pending = 0
+    in_flight = 0
+    for v in sku.variants:
+        for img in v.images:
+            if img.status == ImageStatus.PENDING.value:
+                img.status = ImageStatus.FAILED.value
+                img.err_msg = "cancelled by user"
+                state_store.pending_ratios_clear(img.id)
+                cancelled_pending += 1
+            elif img.status in {
+                ImageStatus.CUTTING.value, ImageStatus.GENERATING.value,
+                ImageStatus.COMPOSING.value,
+            }:
+                in_flight += 1
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "cancelled_pending": cancelled_pending, "in_flight": in_flight}
 
 
 class RegenerateImageRequest(BaseModel):

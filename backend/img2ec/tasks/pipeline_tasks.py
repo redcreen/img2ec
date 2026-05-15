@@ -67,6 +67,9 @@ def process_image_task(
         client = ComfyClient(settings.comfy_url, timeout=settings.comfy_timeout)
 
         def update_progress(stage: str, pct: int) -> None:
+            db.refresh(sku)
+            if sku.status == "cancelled":
+                raise CancelRequested(f"cancel detected at stage {stage}")
             img.status = stage if stage in ("cutting", "generating", "composing") else img.status
             img.progress = pct
             db.commit()
