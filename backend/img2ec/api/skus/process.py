@@ -17,20 +17,28 @@ def preview_prompt(
     extra_negative_prompt: str = "",
     disable_scene: bool = False,
     has_reference: bool = False,
+    variant_id: str | None = None,
     db: Session = Depends(get_session),
 ) -> dict:
     """返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。
+    - variant_id：传则取该变体的 scene（变体覆盖 > SKU 默认）；不传走 SKU 默认
     - disable_scene=true → 模拟"启用模板"关闭：纯人工 prompt 模式
     - has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）
     preview 与实际 codex 提交走同一个 build_master_prompt，保证一致。
     """
     from img2ec.infra.codex_image import build_master_prompt
-    from img2ec.models import Scene
+    from img2ec.models import Scene, Variant
 
     sku = db.get(SKU, sku_id)
     if sku is None or sku.project_id != project_id:
         raise HTTPException(404, "sku not found")
-    scene = db.get(Scene, sku.scene_id) if sku.scene_id else None
+    effective_scene_id: str | None = sku.scene_id
+    if variant_id is not None:
+        v = db.get(Variant, variant_id)
+        if v is None or v.product_id != sku.id:
+            raise HTTPException(404, "variant not found")
+        effective_scene_id = v.scene_id or sku.scene_id
+    scene = db.get(Scene, effective_scene_id) if effective_scene_id else None
     # disable_scene 或参考图模式 → 全部 scene 信息清空
     effective_scene = scene if not (disable_scene or has_reference) else None
     sp = effective_scene.prompt if effective_scene else ""
@@ -88,11 +96,18 @@ def process_sku(
         reference_image_path = str(validate_reference_path(payload.reference_image_path))
         # 参考图模式自动停模板（UI 端二选一，这里再兜底）
         disable_scene = True
-    # 关闭模板 OR SKU 没模板 → 必须有 extra_prompt 或 reference_image 兜底
-    effective_no_scene = disable_scene or sku.scene_id is None
+    # 关闭模板 OR 目标变体都没模板（变体覆盖 → SKU 默认 → 都 None）→ 必须有 extra_prompt 或 ref
+    if variant_id is not None:
+        check_variants = [v for v in sku.variants if v.id == variant_id]
+    else:
+        check_variants = list(sku.variants)
+    any_variant_has_scene = any(
+        ((v.scene_id or sku.scene_id) is not None) for v in check_variants
+    )
+    effective_no_scene = disable_scene or not any_variant_has_scene
     if effective_no_scene and not extra_prompt.strip() and not reference_image_path:
         any_img_has_scene = (not disable_scene) and any(
-            im.scene_id for v in sku.variants for im in v.images
+            im.scene_id for v in check_variants for im in v.images
         )
         if not any_img_has_scene:
             raise HTTPException(400, "模板 / 参考图 / 附加提示词 三选一必填")
@@ -215,7 +230,8 @@ def regenerate_single_image(
     extra_prompt = (payload.extra_prompt if payload else "") or ""
     extra_negative_prompt = (payload.extra_negative_prompt if payload else "") or ""
     extra_weight = float(payload.extra_weight if payload else 0.0)
-    effective_scene_id = img.scene_id or sku.scene_id
+    variant_scene = img.variant.scene_id if img.variant else None
+    effective_scene_id = img.scene_id or variant_scene or sku.scene_id
     if effective_scene_id is None and not extra_prompt.strip():
         raise HTTPException(400, "未选模板且未填提示词；至少二选一")
 

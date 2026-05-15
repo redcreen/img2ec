@@ -35,7 +35,10 @@ def regenerate_dimension_task(
             return "no_dims"
         scene_prompt = None
         if style == "template":
-            scene = sku.scene
+            # 变体级覆盖 > SKU 默认
+            from img2ec.models import Scene
+            effective_scene_id = variant.scene_id or sku.scene_id
+            scene = db.get(Scene, effective_scene_id) if effective_scene_id else None
             if scene is None or not scene.prompt:
                 state_store.dim_set(variant_id, key, "error", "no scene for template style")
                 return "no_scene"

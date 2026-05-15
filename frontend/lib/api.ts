@@ -83,6 +83,14 @@ export const api = {
       `/api/projects/${pid}/skus/${sid}/variants/${vid}`,
       { method: "PATCH", body: JSON.stringify({ color_name }) }
     ),
+  patchVariant: (
+    pid: string, sid: string, vid: string,
+    body: { color_name?: string; scene_id?: string | null; clear_scene?: boolean },
+  ) =>
+    req<{ id: string; color_name: string; status: string; scene_id: string | null }>(
+      `/api/projects/${pid}/skus/${sid}/variants/${vid}`,
+      { method: "PATCH", body: JSON.stringify(body) }
+    ),
   deleteVariant: (pid: string, sid: string, vid: string) =>
     req<void>(`/api/projects/${pid}/skus/${sid}/variants/${vid}`, { method: "DELETE" }),
   setVariantThumbnails: (pid: string, sid: string, vid: string, image_keys: string[]) =>
@@ -182,6 +190,7 @@ export const api = {
     extraPrompt = "", extraWeight = 0,
     extraNegativePrompt = "", disableScene = false,
     hasReference = false,
+    variantId?: string,
   ) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {
@@ -191,6 +200,7 @@ export const api = {
     if (extraNegativePrompt) qs.set("extra_negative_prompt", extraNegativePrompt);
     if (disableScene) qs.set("disable_scene", "true");
     if (hasReference) qs.set("has_reference", "true");
+    if (variantId) qs.set("variant_id", variantId);
     const url = `/api/projects/${pid}/skus/${sid}/preview-prompt${qs.toString() ? "?" + qs.toString() : ""}`;
     return req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(url);
   },

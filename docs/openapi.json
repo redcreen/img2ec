@@ -1242,7 +1242,7 @@
           "skus"
         ],
         "summary": "Preview Prompt",
-        "description": "返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。\n- disable_scene=true → 模拟\"启用模板\"关闭：纯人工 prompt 模式\n- has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）\npreview 与实际 codex 提交走同一个 build_master_prompt，保证一致。",
+        "description": "返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。\n- variant_id：传则取该变体的 scene（变体覆盖 > SKU 默认）；不传走 SKU 默认\n- disable_scene=true → 模拟\"启用模板\"关闭：纯人工 prompt 模式\n- has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）\npreview 与实际 codex 提交走同一个 build_master_prompt，保证一致。",
         "operationId": "preview_prompt_api_projects__project_id__skus__sku_id__preview_prompt_get",
         "parameters": [
           {
@@ -1311,6 +1311,22 @@
               "type": "boolean",
               "default": false,
               "title": "Has Reference"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
             }
           }
         ],
@@ -1433,7 +1449,7 @@
           "skus"
         ],
         "summary": "Cancel Sku",
-        "description": "请求停止处理。Pipeline 会在下一个 master 完成后检测到并 bail；已生成的 master 保留。",
+        "description": "请求停止处理。\n- 立刻把所有 PENDING（还在队列里等的）图标 FAILED，清掉 Redis pending_ratios —\n  这些 worker 还没启动，不会被覆盖。\n- 已经在跑的（cutting/generating/composing）由 worker 在下个 progress 回调时\n  看到 sku.status=cancelled 自行 bail。已生成的 master 保留。",
         "operationId": "cancel_sku_api_projects__project_id__skus__sku_id__cancel_post",
         "parameters": [
           {
@@ -4085,6 +4101,17 @@
             "type": "string",
             "title": "Status"
           },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
           "sku_thumb_path": {
             "anyOf": [
               {
@@ -4210,6 +4237,22 @@
               }
             ],
             "title": "Color Name"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "clear_scene": {
+            "type": "boolean",
+            "title": "Clear Scene",
+            "default": false
           }
         },
         "type": "object",

@@ -302,6 +302,7 @@ export interface paths {
         /**
          * Preview Prompt
          * @description 返回该 SKU 当前 scene 拼装出的 ratio 完整 prompt（前端展示用）。
+         *     - variant_id：传则取该变体的 scene（变体覆盖 > SKU 默认）；不传走 SKU 默认
          *     - disable_scene=true → 模拟"启用模板"关闭：纯人工 prompt 模式
          *     - has_reference=true → 参考图驱动模式（scene 强制忽略；模板/参考图二选一）
          *     preview 与实际 codex 提交走同一个 build_master_prompt，保证一致。
@@ -349,7 +350,11 @@ export interface paths {
         put?: never;
         /**
          * Cancel Sku
-         * @description 请求停止处理。Pipeline 会在下一个 master 完成后检测到并 bail；已生成的 master 保留。
+         * @description 请求停止处理。
+         *     - 立刻把所有 PENDING（还在队列里等的）图标 FAILED，清掉 Redis pending_ratios —
+         *       这些 worker 还没启动，不会被覆盖。
+         *     - 已经在跑的（cutting/generating/composing）由 worker 在下个 progress 回调时
+         *       看到 sku.status=cancelled 自行 bail。已生成的 master 保留。
          */
         post: operations["cancel_sku_api_projects__project_id__skus__sku_id__cancel_post"];
         delete?: never;
@@ -1333,6 +1338,8 @@ export interface components {
             color_name: string;
             /** Status */
             status: string;
+            /** Scene Id */
+            scene_id?: string | null;
             /** Sku Thumb Path */
             sku_thumb_path?: string | null;
             /** Sku Thumb Url */
@@ -1380,6 +1387,13 @@ export interface components {
         VariantUpdate: {
             /** Color Name */
             color_name?: string | null;
+            /** Scene Id */
+            scene_id?: string | null;
+            /**
+             * Clear Scene
+             * @default false
+             */
+            clear_scene: boolean;
         };
     };
     responses: never;
@@ -2196,6 +2210,7 @@ export interface operations {
                 extra_negative_prompt?: string;
                 disable_scene?: boolean;
                 has_reference?: boolean;
+                variant_id?: string | null;
             };
             header?: never;
             path: {

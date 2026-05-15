@@ -64,6 +64,8 @@ export interface Variant {
   id: string;
   color_name: string;
   status: SKUStatus;
+  // 每变体模板覆盖；null = 继承 SKU.scene_id
+  scene_id: string | null;
   // 主色卡（兼容 = sku_thumb_paths[0]）
   sku_thumb_path: string | null;
   sku_thumb_url: string | null;

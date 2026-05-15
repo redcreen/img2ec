@@ -19,14 +19,14 @@ const RATIO_LABEL: Record<string, string> = {
 };
 
 export function PromptPreview({
-  pid, sid, scene,
+  pid, sid, vid, scene,
   extraPrompt, extraWeight, onExtraPromptChange, onExtraWeightChange,
   extraNegativePrompt = "", onExtraNegativePromptChange,
   mode, onModeChange,
   referenceImage, onReferenceChange,
   onSceneChanged,
 }: {
-  pid: string; sid: string; scene?: Scene;
+  pid: string; sid: string; vid?: string; scene?: Scene;
   extraPrompt: string;
   extraWeight: number;
   onExtraPromptChange: (s: string) => void;
@@ -51,13 +51,13 @@ export function PromptPreview({
   const disableScene = mode === "reference";
   const hasReference = mode === "reference" && referenceImage !== null;
   const swrKey = open
-    ? `prompt-${sid}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${mode}-${hasReference}`
+    ? `prompt-${sid}-${vid ?? ""}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${mode}-${hasReference}`
     : null;
   const { data, error } = useSWR(
     swrKey,
     () => api.previewPrompt(
       pid, sid, extraPrompt, extraWeight, extraNegativePrompt,
-      disableScene, hasReference,
+      disableScene, hasReference, vid,
     ),
   );
 
@@ -207,7 +207,11 @@ export function PromptPreview({
             if (!sceneId) return;
             setPicking(true);
             try {
-              await api.patchSku(pid, sid, { scene_id: sceneId });
+              if (vid) {
+                await api.patchVariant(pid, sid, vid, { scene_id: sceneId });
+              } else {
+                await api.patchSku(pid, sid, { scene_id: sceneId });
+              }
               onSceneChanged?.();
             } finally { setPicking(false); }
           }}

@@ -95,7 +95,8 @@ def regenerate(
         raise HTTPException(400, "no master image to use as reference")
 
     sku = variant.product
-    scene = db.get(Scene, sku.scene_id) if sku.scene_id else None
+    effective_scene_id = variant.scene_id or sku.scene_id
+    scene = db.get(Scene, effective_scene_id) if effective_scene_id else None
 
     # 该变体下旧行全部丢弃，重新生成
     db.query(PlatformOutputCopy).filter_by(variant_id=variant.id).delete()

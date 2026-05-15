@@ -44,7 +44,7 @@ function SkuDetailPageInner() {
   const [sourceLightbox, setSourceLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [activeVariantId, setActiveVariantId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const [genConfig, dispatchGen] = useGenConfig(sid);
+  const [genConfig, dispatchGen] = useGenConfig(sid, activeVariantId || undefined);
   const [submitting, setSubmitting] = useState(false);  // 点击 → 后端 202 → 下次 poll 之间的盲窗
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -58,9 +58,11 @@ function SkuDetailPageInner() {
   const cur = useCuration(sid, activeVariantId);
 
   if (!sku) return <p className="opacity-60">加载中…</p>;
-  const scene = scenes?.find(s => s.id === sku.scene_id);
   const skuPath = project ? `${project.root_path}/${sku.name}` : "";
   const activeVariant = sku.variants.find(v => v.id === activeVariantId) ?? sku.variants[0];
+  // 模板解析：变体级覆盖 → SKU 默认
+  const effectiveSceneId = activeVariant?.scene_id ?? sku.scene_id;
+  const scene = scenes?.find(s => s.id === effectiveSceneId);
 
   const onTriggerGen = async (args: {
     ratios: string[];
@@ -294,7 +296,7 @@ function SkuDetailPageInner() {
             {/* 2. 模板 + Prompt */}
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
               <PromptPreview
-                pid={pid} sid={sid} scene={scene}
+                pid={pid} sid={sid} vid={activeVariant?.id} scene={scene}
                 extraPrompt={genConfig.extraPrompt}
                 extraWeight={genConfig.extraWeight}
                 extraNegativePrompt={genConfig.extraNegativePrompt}

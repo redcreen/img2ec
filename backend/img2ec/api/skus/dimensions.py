@@ -114,9 +114,10 @@ def regenerate_dimension_diagram(
     if not indices:
         raise HTTPException(400, "image_indices cannot be empty")
 
-    scene = db.get(Scene, sku.scene_id) if sku.scene_id else None
+    effective_scene_id = variant.scene_id or sku.scene_id
+    scene = db.get(Scene, effective_scene_id) if effective_scene_id else None
     if "template" in requested and (scene is None or not scene.prompt):
-        raise HTTPException(400, "template style requires SKU to have a scene template assigned")
+        raise HTTPException(400, "template style requires a scene template on the variant or SKU")
 
     # (style, idx) 组合 — 状态通过 Redis 跨进程共享
     from img2ec.infra import state_store

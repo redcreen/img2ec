@@ -138,41 +138,42 @@ function deserialize(raw: string): GenConfig | null {
   }
 }
 
-/** 主 hook：传 sid 启用 localStorage 持久化；不传则纯内存。
- *  用 useReducer lazy initializer，第一次渲染就拿持久化值 —— 没有
- *  "先 initialGenConfig 再 hydrate" 的窗口，所以不会被写 effect 抢先
- *  覆盖 localStorage（之前正是这个 race 导致刷新后参考图丢失）。 */
-export function useGenConfig(sid?: string) {
-  const [state, dispatch] = useReducer(genConfigReducer, sid, (currentSid) => {
-    if (!currentSid || typeof window === "undefined") return initialGenConfig;
-    const raw = window.localStorage.getItem(LS_PREFIX + currentSid);
+/** 主 hook：按 (sid, vid) 在 localStorage 持久化；任一为空则纯内存。
+ *  - mode/reference/extraPrompt/selectedImgIds 在变体级隔离 — 不同颜色独立配置
+ *  - 用 useReducer lazy initializer，第一次渲染就拿持久化值 —— 没有
+ *    "先 initialGenConfig 再 hydrate" 的窗口（避免写 effect 抢先覆盖 localStorage）。 */
+export function useGenConfig(sid?: string, vid?: string) {
+  const lsKey = sid && vid ? `${LS_PREFIX}${sid}:${vid}` : null;
+  const [state, dispatch] = useReducer(genConfigReducer, lsKey, (key) => {
+    if (!key || typeof window === "undefined") return initialGenConfig;
+    const raw = window.localStorage.getItem(key);
     if (!raw) return initialGenConfig;
     return deserialize(raw) ?? initialGenConfig;
   });
 
-  // 切换到不同 SKU 时重新 hydrate（lazy init 只在 mount 跑一次）
-  const lastSidRef = useRef(sid);
+  // 切换 SKU 或 变体时重新 hydrate（lazy init 只在 mount 跑一次）
+  const lastKeyRef = useRef(lsKey);
   useEffect(() => {
-    if (lastSidRef.current === sid) return;
-    lastSidRef.current = sid;
-    if (!sid || typeof window === "undefined") {
+    if (lastKeyRef.current === lsKey) return;
+    lastKeyRef.current = lsKey;
+    if (!lsKey || typeof window === "undefined") {
       dispatch({ type: "reset" });
       return;
     }
-    const raw = window.localStorage.getItem(LS_PREFIX + sid);
+    const raw = window.localStorage.getItem(lsKey);
     if (!raw) {
       dispatch({ type: "reset" });
       return;
     }
     const restored = deserialize(raw);
     dispatch({ type: "hydrate", value: restored ?? initialGenConfig });
-  }, [sid]);
+  }, [lsKey]);
 
   // 状态变化时写回 localStorage
   useEffect(() => {
-    if (!sid || typeof window === "undefined") return;
-    window.localStorage.setItem(LS_PREFIX + sid, serialize(state));
-  }, [sid, state]);
+    if (!lsKey || typeof window === "undefined") return;
+    window.localStorage.setItem(lsKey, serialize(state));
+  }, [lsKey, state]);
 
   return [state, dispatch] as const;
 }

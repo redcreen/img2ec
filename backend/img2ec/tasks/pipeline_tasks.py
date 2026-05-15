@@ -39,11 +39,13 @@ def process_image_task(
 
         sku = db.get(SKU, img.sku_id)
         project: Project = db.get(Project, sku.project_id)
+        variant = img.variant
         # 参考图模式：scene 强制忽略（UI 端二选一保证不冲突，这里再兜底）
         has_reference = bool(reference_image_path)
+        # 三级解析：图覆盖 > 变体模板 > SKU 默认
         effective_scene_id = (
             None if (disable_scene or has_reference)
-            else (img.scene_id or sku.scene_id)
+            else (img.scene_id or (variant.scene_id if variant else None) or sku.scene_id)
         )
         scene: Scene | None = db.get(Scene, effective_scene_id) if effective_scene_id else None
         # 兜底三选一：模板 OR 参考图 OR extra_prompt

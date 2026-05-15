@@ -38,6 +38,8 @@ class VariantOut(BaseModel):
     id: str
     color_name: str
     status: str
+    # 每变体模板覆盖（null = 走 SKU 默认 scene_id）
+    scene_id: str | None = None
     # 主色卡（兼容字段，list[0]）
     sku_thumb_path: str | None = None
     sku_thumb_url: str | None = None

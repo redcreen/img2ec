@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from img2ec.db import get_session
 from img2ec.infra.fs_layout import sku_dir as sku_dir_fn, variant_dir as variant_dir_fn, slug
-from img2ec.models import SKU, Variant
+from img2ec.models import SKU, Scene, Variant
 
 
 router = APIRouter(
@@ -26,6 +26,8 @@ class VariantCreate(BaseModel):
 
 class VariantUpdate(BaseModel):
     color_name: str | None = Field(None, min_length=1, max_length=60)
+    scene_id: str | None = None        # 传 id → 切模板；None 不动；想清空用 clear_scene
+    clear_scene: bool = False          # true → 显式置 null（"该变体无模板，走 SKU 默认"）
 
 
 class VariantThumbnail(BaseModel):
@@ -94,9 +96,19 @@ def update_variant(
     if payload.color_name:
         _ensure_color_unique(sku, payload.color_name.strip(), exclude_id=v.id)
         v.color_name = payload.color_name.strip()
+    if payload.clear_scene:
+        v.scene_id = None
+    elif payload.scene_id is not None:
+        sc = db.get(Scene, payload.scene_id)
+        if sc is None or sc.project_id != project_id:
+            raise HTTPException(404, "scene not found")
+        v.scene_id = payload.scene_id
     db.commit()
     db.refresh(v)
-    return {"id": v.id, "color_name": v.color_name, "status": v.status}
+    return {
+        "id": v.id, "color_name": v.color_name, "status": v.status,
+        "scene_id": v.scene_id,
+    }
 
 
 def _resolve_image_key(v: Variant, key: str, sku) -> str:
