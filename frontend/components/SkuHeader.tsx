@@ -4,7 +4,7 @@
  *  从 page.tsx 抽出，便于试装和后续单测。 */
 import { useState } from "react";
 import { api } from "@/lib/api";
-import type { SKU, Scene, SourceImage, Variant } from "@/lib/types";
+import type { SKU, SourceImage, Variant } from "@/lib/types";
 import { useToast } from "@/lib/useToast";
 import { PathBar } from "./PathBar";
 import { StatusPill } from "./StatusPill";
@@ -16,12 +16,11 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 export function SkuHeader({
-  sku, scene, skuPath, pid, sid,
+  sku, skuPath, pid, sid,
   activeVariant, currentImg, currentImgIdx, totalImages,
   onCancel, onDelete, onAfterRename,
 }: {
   sku: SKU;
-  scene?: Scene;
   skuPath: string;
   pid: string;
   sid: string;
@@ -51,7 +50,7 @@ export function SkuHeader({
 
   return (
     <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
-      <div className="flex items-center gap-3 mb-2 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
         {renaming ? (
           <form
             className="flex items-center gap-1.5"
@@ -83,11 +82,7 @@ export function SkuHeader({
           </strong>
         )}
         <StatusPill status={sku.status} />
-        {scene && (
-          <span className="text-[11px] opacity-60">
-            · 模板：<span className="text-zinc-200">{scene.name}</span>
-          </span>
-        )}
+        <PathBar path={skuPath} label="SKU 目录" compact />
         <div className="flex-1" />
         <ConcurrencyControl />
         {sku.status === "running" && (
@@ -107,7 +102,6 @@ export function SkuHeader({
           className="text-red-400 border border-red-400 rounded px-2 py-1 text-xs"
         >删除</button>
       </div>
-      <PathBar path={skuPath} label="SKU 目录" />
       {sku.status === "running" && currentImg && (
         <div className="mt-3 text-[11px] flex gap-2 flex-wrap">
           <span>

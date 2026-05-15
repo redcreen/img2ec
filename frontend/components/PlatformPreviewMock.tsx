@@ -15,6 +15,49 @@ const PHONE_HEIGHT = 720;
 // 主图列表现在由 useCuration 提供（per-SKU，跨平台一致）。本组件只读，
 // 编辑由 ImageCurationPanel 完成。
 
+/** 变体级"打包下载"：主图/ + SKU图/ + 详情图/ + 文案.txt 一个 zip。
+ *  位置在仿平台预览左下角（"商品 listing" 标签下方）—— 比顶部按钮组更显眼，
+ *  用户看着图就知道下载的是当前显示的内容。 */
+function BundleDownloadButton({
+  pid, sid, variantId, platform, mainKeys, detailKeys,
+}: {
+  pid: string;
+  sid: string;
+  variantId: string;
+  platform: "douyin" | "shipinhao" | "xiaohongshu";
+  mainKeys: string[];
+  detailKeys: string[];
+}) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const onClick = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.downloadBundle(pid, sid, {
+        platform,
+        variant_id: variantId,
+        main_keys: mainKeys,
+        detail_keys: detailKeys,
+      });
+    } catch (e: any) {
+      toast.error(e.message || "打包失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="mt-2 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-semibold disabled:opacity-50 flex items-center gap-1"
+      title={`一键打包：主图/ + SKU图/ + 详情图/ + 文案.txt`}
+    >
+      {busy ? "打包中…" : "⬇ 一键打包下载（主图 · SKU图 · 详情图）"}
+    </button>
+  );
+}
+
 /** 仿平台预览：上方多图缩略横排（来自 useCuration 主图列表，per variant）。 */
 export function PlatformPreviewMock({
   platform, image, copy, productId, variant, pid, sid, sku, activeVariantId, onSelectVariant, onChanged,
@@ -298,6 +341,14 @@ export function PlatformPreviewMock({
           {platform === "shipinhao" && <ShipinhaoMock {...mockProps} />}
           {platform === "xiaohongshu" && <XiaohongshuMock {...mockProps} />}
           <div className="text-[10px] opacity-50 mt-2">商品 listing</div>
+          <BundleDownloadButton
+            pid={pid}
+            sid={sid}
+            variantId={variant.id}
+            platform={platform}
+            mainKeys={cur.main}
+            detailKeys={cur.detail}
+          />
         </div>
 
         <div className="flex flex-col items-center" style={{ width: PHONE_WIDTH }}>
@@ -710,3 +761,4 @@ function XiaohongshuMock({ currentUrl, copy, totalImages, currentIndex, onHeroCl
     </PhoneFrame>
   );
 }
+

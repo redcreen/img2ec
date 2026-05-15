@@ -236,7 +236,7 @@ function SkuDetailPageInner() {
         </div>
       )}
       <SkuHeader
-        sku={sku} scene={scene} skuPath={skuPath}
+        sku={sku} skuPath={skuPath}
         pid={pid} sid={sid}
         activeVariant={activeVariant}
         currentImg={currentImg}
