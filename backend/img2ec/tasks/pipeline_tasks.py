@@ -168,41 +168,39 @@ def process_image_task(
             client.close()
 
         # Phase 2.5: 文案 + 详情页（按当前 image 所在 variant 维度独立触发）
+        # 触发条件放宽：只要变体里至少一张图有 1x1 master 且文案没生成过就开干 ——
+        # 不再要求全部 done。否则任何一张图失败就永远没文案、详情页都不渲染。
         db.refresh(sku)
         variant = img.variant
         if variant is not None:
             variant_images = list(variant.images)
-            variant_done = (
-                bool(variant_images)
-                and all(i.status == ImageStatus.DONE.value for i in variant_images)
-            )
             existing_copy = (
                 db.query(PlatformOutputCopy).filter_by(variant_id=variant.id).count()
             )
-            if variant_done and existing_copy == 0:
+            ref_img = next(
+                (i for i in variant_images
+                 if i.master_paths and i.master_paths.get("1x1")),
+                None,
+            )
+            if ref_img is not None and existing_copy == 0:
                 try:
                     from img2ec.core.copy_gen import generate_copy_for_sku
                     from img2ec.infra.llm_provider import CodexCLIProvider, LLMProviderError
-                    first_img = variant_images[0]
-                    master_1x1 = (
-                        first_img.master_paths.get("1x1") if first_img.master_paths else None
-                    )
-                    if master_1x1:
-                        provider = CodexCLIProvider()
-                        try:
-                            result = generate_copy_for_sku(
-                                provider=provider,
-                                image_path=Path(master_1x1),
-                                sku_name=sku.name,
-                                scene_name=scene.name if scene else "",
-                                scene_category=scene.category if scene else "",
-                            )
-                            _persist_copy(db, variant.id, result)
-                            _render_detail_pages(
-                                db, variant.id, skud, img.master_paths or {}
-                            )
-                        except LLMProviderError:
-                            pass
+                    provider = CodexCLIProvider()
+                    try:
+                        result = generate_copy_for_sku(
+                            provider=provider,
+                            image_path=Path(ref_img.master_paths["1x1"]),
+                            sku_name=sku.name,
+                            scene_name=scene.name if scene else "",
+                            scene_category=scene.category if scene else "",
+                        )
+                        _persist_copy(db, variant.id, result)
+                        _render_detail_pages(
+                            db, variant.id, skud, ref_img.master_paths or {}
+                        )
+                    except LLMProviderError:
+                        pass
                 except Exception:
                     pass
 

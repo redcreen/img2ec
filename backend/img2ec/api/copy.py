@@ -90,9 +90,14 @@ def regenerate(
     images = list(variant.images)
     if not images:
         raise HTTPException(400, "variant has no source images")
-    master = images[0].master_paths.get("1x1") if images[0].master_paths else None
-    if not master:
-        raise HTTPException(400, "no master image to use as reference")
+    # 找第一张有 1x1 master 的图 —— 不要求是 images[0]（它可能失败了）
+    ref_img = next(
+        (im for im in images if im.master_paths and im.master_paths.get("1x1")),
+        None,
+    )
+    if ref_img is None:
+        raise HTTPException(400, "no master 1x1 yet — process at least one image first")
+    master = ref_img.master_paths["1x1"]
 
     sku = variant.product
     effective_scene_id = variant.scene_id or sku.scene_id
@@ -112,7 +117,17 @@ def regenerate(
     except LLMProviderError as e:
         raise HTTPException(502, f"LLM error: {e}")
 
-    from img2ec.tasks.pipeline_tasks import _persist_copy
+    from img2ec.tasks.pipeline_tasks import _persist_copy, _render_detail_pages
+    from img2ec.infra.fs_layout import sku_dir as sku_dir_fn
     _persist_copy(db, variant.id, result)
+
+    # 同步重渲详情页拼图（用 ref_img 的所有 ratio masters）
+    proj = sku.project
+    if proj:
+        try:
+            skud = sku_dir_fn(Path(proj.root_path).parent, proj.name, sku.name, sku.id)
+            _render_detail_pages(db, variant.id, skud, ref_img.master_paths or {})
+        except Exception:
+            pass  # 详情页失败不挡文案
 
     return list_copy(project_id, sku_id, variant_id, db)
