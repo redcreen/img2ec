@@ -1,5 +1,7 @@
+import os
 import re
 from pathlib import Path
+from typing import Any
 
 VALID_PLATFORMS = {"douyin", "shipinhao", "taobao", "xiaohongshu"}
 SLUG_PATTERN = re.compile(r"[^a-zA-Z0-9一-龥_-]+")
@@ -75,3 +77,40 @@ def ensure_sku_dirs(sku_d: Path) -> None:
         sub(sku_d).mkdir(parents=True, exist_ok=True)
     for p in VALID_PLATFORMS:
         platform_dir(sku_d, p).mkdir(parents=True, exist_ok=True)
+
+
+def atomic_save_image(image: Any, path: Path, **save_kwargs: Any) -> None:
+    """Atomically save a PIL.Image to `path`：先写 `.tmp.<pid>` 再 os.replace。
+
+    重要：避免"截断打开期间浏览器读到 0 字节"的窗口 —— 覆盖原版本时尤其
+    会触发，旧 ETag 200 被浏览器缓存后整页都坏掉。
+
+    同盘 os.replace 在 POSIX 是原子的（Linux/macOS）。跨盘退化为非原子拷贝，
+    我们的写入永远在 sku 目录下所以总是同盘。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    try:
+        image.save(tmp, **save_kwargs)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
+
+
+def atomic_write_bytes(data: bytes, path: Path) -> None:
+    """同上但写裸 bytes（comfy client 下载的图等）。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise

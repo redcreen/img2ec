@@ -59,7 +59,8 @@ def upload_image(
         except Exception as e:
             raise HTTPException(400, f"HEIC 解码失败：{e}")
     dst = src_d / final_name
-    dst.write_bytes(raw_bytes)
+    from img2ec.infra.fs_layout import atomic_write_bytes
+    atomic_write_bytes(raw_bytes, dst)
 
     next_order = len(variant.images)
     img = SourceImage(

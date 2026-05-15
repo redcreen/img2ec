@@ -89,12 +89,12 @@ def _run_codex_to_image(
             # Image.open / save 都可能炸（PNG 损坏 / 磁盘满 / 权限）—
             # 全部归并到 CodexImageError，避免到处冒泡成 500
             try:
+                from img2ec.infra.fs_layout import atomic_save_image
                 with Image.open(raw_png) as src:
                     rgb = src.convert("RGB")
                     if rgb.size != target_dims:
                         rgb = _fit_to_target(rgb, target_dims)
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    rgb.save(output_path, "JPEG", quality=92)
+                    atomic_save_image(rgb, output_path, format="JPEG", quality=92)
             except Exception as e:
                 raise CodexImageError(
                     f"failed to decode/save codex output: {e}"
@@ -177,8 +177,8 @@ def _source_to_white_bg(source_image: Path, cache_path: Path | None = None) -> I
     bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
     composed = Image.alpha_composite(bg, rgba).convert("RGB")
     if cache_path:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        composed.save(cache_path, "JPEG", quality=92)
+        from img2ec.infra.fs_layout import atomic_save_image
+        atomic_save_image(composed, cache_path, format="JPEG", quality=92)
     return composed
 
 
@@ -207,8 +207,8 @@ def generate_closeup_crop(
     top = max(0, min(H - sz, cy - sz // 2))
     cropped = rgb.crop((left, top, left + sz, top + sz))
     out = cropped.resize((1024, 1024), Image.LANCZOS)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    out.save(output_path, "JPEG", quality=92)
+    from img2ec.infra.fs_layout import atomic_save_image
+    atomic_save_image(out, output_path, format="JPEG", quality=92)
     return output_path
 
 

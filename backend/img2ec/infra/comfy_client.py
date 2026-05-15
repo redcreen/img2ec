@@ -76,8 +76,8 @@ class ComfyClient:
             resp.raise_for_status()
         except Exception as e:
             raise ComfyError(f"download failed: {e}") from e
-        dst_path.parent.mkdir(parents=True, exist_ok=True)
-        dst_path.write_bytes(resp.content)
+        from img2ec.infra.fs_layout import atomic_write_bytes
+        atomic_write_bytes(resp.content, dst_path)
 
     def close(self) -> None:
         self._client.close()

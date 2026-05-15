@@ -48,7 +48,8 @@ def upload_reference(
         raise HTTPException(413, f"file too large (>{_MAX_BYTES // 1024 // 1024} MB)")
 
     out = _REF_DIR / f"ref-{uuid.uuid4().hex[:12]}{suffix}"
-    out.write_bytes(data)
+    from img2ec.infra.fs_layout import atomic_write_bytes
+    atomic_write_bytes(data, out)
     return {
         "path": str(out),
         "url": f"/static/ai-previews/{out.name}",

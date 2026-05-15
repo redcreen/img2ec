@@ -98,7 +98,8 @@ def derive_all_for_image(
                 else:
                     suffix = "-750w"
                 dst = platform_dir / f"{image_stem}-{item['name']}{suffix}.jpg"
-                derived.save(dst, quality=90)
+                from img2ec.infra.fs_layout import atomic_save_image
+                atomic_save_image(derived, dst, format="JPEG", quality=90)
                 out[platform].append(dst)
     return out
 

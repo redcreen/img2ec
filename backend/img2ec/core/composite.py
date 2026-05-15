@@ -114,8 +114,8 @@ def composite_cutout_on_background(
         canvas.alpha_composite(contact_shadow, (x - pad_cx, y - pad_cy))
     canvas.alpha_composite(cut_resized, (x, y))
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.convert("RGB").save(output_path, "JPEG", quality=92)
+    from img2ec.infra.fs_layout import atomic_save_image
+    atomic_save_image(canvas.convert("RGB"), output_path, format="JPEG", quality=92)
     return output_path
 
 

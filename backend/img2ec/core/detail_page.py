@@ -51,6 +51,6 @@ def render_detail_page(
         canvas.paste(block.convert("RGB"), (0, y))
         y += block.size[1]
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(output_path, "JPEG", quality=90)
+    from img2ec.infra.fs_layout import atomic_save_image
+    atomic_save_image(canvas, output_path, format="JPEG", quality=90)
     return output_path
