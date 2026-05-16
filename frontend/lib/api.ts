@@ -140,6 +140,7 @@ export const api = {
     extra?: {
       prompt: string; weight: number; negative?: string;
       disableScene?: boolean; referencePath?: string | null;
+      useBuiltinPrompt?: boolean;
     },
     imageIds?: string[],
   ) => {
@@ -155,6 +156,7 @@ export const api = {
     }
     if (extra && extra.disableScene) body.disable_scene = true;
     if (extra && extra.referencePath) body.reference_image_path = extra.referencePath;
+    if (extra && extra.useBuiltinPrompt === false) body.use_builtin_prompt = false;
     if (imageIds && imageIds.length > 0) body.image_ids = imageIds;
     return req<{ queued: number }>(`/api/projects/${pid}/skus/${sid}/process${qs}`, {
       method: "POST",
@@ -191,6 +193,7 @@ export const api = {
     extraNegativePrompt = "", disableScene = false,
     hasReference = false,
     variantId?: string,
+    useBuiltinPrompt = true,
   ) => {
     const qs = new URLSearchParams();
     if (extraPrompt) {
@@ -200,6 +203,7 @@ export const api = {
     if (extraNegativePrompt) qs.set("extra_negative_prompt", extraNegativePrompt);
     if (disableScene) qs.set("disable_scene", "true");
     if (hasReference) qs.set("has_reference", "true");
+    if (!useBuiltinPrompt) qs.set("use_builtin_prompt", "false");
     if (variantId) qs.set("variant_id", variantId);
     const url = `/api/projects/${pid}/skus/${sid}/preview-prompt${qs.toString() ? "?" + qs.toString() : ""}`;
     return req<{ scene_name: string; scene_prompt: string; negative_prompt: string; per_ratio: Record<string,string> }>(url);

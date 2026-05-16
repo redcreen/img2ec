@@ -224,11 +224,13 @@ def generate_master_from_input(
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
     reference_image: Path | None = None,
+    use_builtin_prompt: bool = True,
 ) -> Path:
     """Path C — image-to-image：商品 + 场景一步出图。
 
     reference_image：可选场景参考图。设置时 scene_prompt 即使为空，
     build_master_prompt 也会换成"参考图驱动模式"。
+    use_builtin_prompt=False：跳过所有内置系统规则，仅发用户 extra_prompt。
     """
     target_dims = TARGET_DIMENSIONS.get(ratio_key)
     if target_dims is None:
@@ -238,6 +240,7 @@ def generate_master_from_input(
         extra_prompt=extra_prompt, extra_weight=extra_weight,
         extra_negative_prompt=extra_negative_prompt,
         has_reference=reference_image is not None,
+        use_builtin=use_builtin_prompt,
     )
     extra_refs = [reference_image] if reference_image else None
     return _run_codex_to_image(

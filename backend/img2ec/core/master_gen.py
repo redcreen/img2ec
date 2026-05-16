@@ -109,6 +109,7 @@ def generate_all_masters(
     extra_negative_prompt: str = "",
     overwrite: bool = False,
     reference_image: Path | None = None,
+    use_builtin_prompt: bool = True,
 ) -> dict[str, Path]:
     """Codex image-to-image 出 master。`ratios` 限定生成哪些尺寸（None=全部 5 张）。"""
     del ip_weight, seed  # unused
@@ -154,6 +155,7 @@ def generate_all_masters(
                 extra_weight=extra_weight,
                 extra_negative_prompt=extra_negative_prompt,
                 reference_image=reference_image,
+                use_builtin_prompt=use_builtin_prompt,
             )
         else:
             # Path A fallback：抠图 + AI bg + PIL composite

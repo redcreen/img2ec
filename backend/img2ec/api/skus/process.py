@@ -17,6 +17,7 @@ def preview_prompt(
     extra_negative_prompt: str = "",
     disable_scene: bool = False,
     has_reference: bool = False,
+    use_builtin_prompt: bool = True,
     variant_id: str | None = None,
     db: Session = Depends(get_session),
 ) -> dict:
@@ -52,6 +53,7 @@ def preview_prompt(
                 extra_prompt=extra_prompt, extra_weight=extra_weight,
                 extra_negative_prompt=extra_negative_prompt,
                 has_reference=has_reference,
+                use_builtin=use_builtin_prompt,
             )
             for r in ORDERED_RATIOS
         },
@@ -67,6 +69,7 @@ class ProcessRequest(BaseModel):
     overwrite: bool = False           # true → 覆盖原版本（不开 v2/v3）
     disable_scene: bool = False       # true → 本次生成不用 SKU 模板（不动 DB）
     reference_image_path: str | None = None  # 本次生成的"参考图驱动"模式（与模板二选一）
+    use_builtin_prompt: bool = True   # false → 跳过所有系统规则，仅发用户 extra_prompt
 
 
 @router.post("/{sku_id}/process", status_code=202)
@@ -90,6 +93,7 @@ def process_sku(
     extra_weight = float(payload.extra_weight if payload else 0.0)
     disable_scene = bool(payload.disable_scene if payload else False)
     overwrite = bool(payload.overwrite if payload else False)
+    use_builtin_prompt = bool(payload.use_builtin_prompt if payload else True)
     reference_image_path: str | None = None
     if payload and payload.reference_image_path:
         from img2ec.api.uploads import validate_reference_path
@@ -163,7 +167,7 @@ def process_sku(
     for iid in image_ids:
         process_image_task.delay(
             iid, wanted, extra_prompt, extra_weight, extra_negative_prompt,
-            overwrite, disable_scene, reference_image_path,
+            overwrite, disable_scene, reference_image_path, use_builtin_prompt,
         )
         state_store.pending_ratios_add(iid, wanted)
 

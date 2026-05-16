@@ -27,6 +27,8 @@ export interface GenConfig {
   selectedImgIds: Set<string>;
   /** 生成时是否覆盖原版本（不开 v2） */
   overwriteVersion: boolean;
+  /** 内置提示词开关；false → 不加任何系统规则，仅发用户 extraPrompt */
+  useBuiltinPrompt: boolean;
 }
 
 export const initialGenConfig: GenConfig = {
@@ -37,6 +39,7 @@ export const initialGenConfig: GenConfig = {
   extraNegativePrompt: "",
   selectedImgIds: new Set(),
   overwriteVersion: false,
+  useBuiltinPrompt: true,
 };
 
 export type GenConfigAction =
@@ -50,6 +53,7 @@ export type GenConfigAction =
   | { type: "select_all"; ids: string[] }
   | { type: "clear_selection" }
   | { type: "set_overwrite"; value: boolean }
+  | { type: "set_builtin_prompt"; value: boolean }
   | { type: "hydrate"; value: GenConfig }
   | { type: "reset" };
 
@@ -70,6 +74,7 @@ export function genConfigReducer(state: GenConfig, action: GenConfigAction): Gen
     case "select_all": return { ...state, selectedImgIds: new Set(action.ids) };
     case "clear_selection": return { ...state, selectedImgIds: new Set() };
     case "set_overwrite": return { ...state, overwriteVersion: action.value };
+    case "set_builtin_prompt": return { ...state, useBuiltinPrompt: action.value };
     case "hydrate": return action.value;
     case "reset": return initialGenConfig;
     default: return state;
@@ -85,6 +90,7 @@ export function toProcessExtra(c: GenConfig): {
   prompt: string; weight: number; negative: string;
   disableScene: boolean;
   referencePath: string | null;
+  useBuiltinPrompt: boolean;
 } | undefined {
   const hasReference = c.mode === "reference" && c.referenceImage !== null;
   const disableScene = c.mode !== "template";  // reference / none 都不要 SKU 模板
@@ -92,7 +98,8 @@ export function toProcessExtra(c: GenConfig): {
     c.extraPrompt.trim() ||
     c.extraNegativePrompt.trim() ||
     disableScene ||
-    hasReference;
+    hasReference ||
+    !c.useBuiltinPrompt;
   if (!hasExtra) return undefined;
   return {
     prompt: c.extraPrompt.trim(),
@@ -100,6 +107,7 @@ export function toProcessExtra(c: GenConfig): {
     negative: c.extraNegativePrompt.trim(),
     disableScene,
     referencePath: hasReference ? c.referenceImage!.path : null,
+    useBuiltinPrompt: c.useBuiltinPrompt,
   };
 }
 
@@ -132,6 +140,7 @@ function deserialize(raw: string): GenConfig | null {
       extraNegativePrompt: parsed.extraNegativePrompt ?? "",
       selectedImgIds: new Set(Array.isArray(parsed.selectedImgIds) ? parsed.selectedImgIds : []),
       overwriteVersion: !!parsed.overwriteVersion,
+      useBuiltinPrompt: typeof parsed.useBuiltinPrompt === "boolean" ? parsed.useBuiltinPrompt : true,
     };
   } catch {
     return null;

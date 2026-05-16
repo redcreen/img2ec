@@ -24,6 +24,7 @@ export function PromptPreview({
   extraNegativePrompt = "", onExtraNegativePromptChange,
   mode, onModeChange,
   referenceImage, onReferenceChange,
+  useBuiltinPrompt = true, onUseBuiltinPromptChange,
   onSceneChanged,
 }: {
   pid: string; sid: string; vid?: string; scene?: Scene;
@@ -37,6 +38,8 @@ export function PromptPreview({
   onModeChange: (m: SceneMode) => void;
   referenceImage: ReferenceImage | null;
   onReferenceChange: (r: ReferenceImage | null) => void;
+  useBuiltinPrompt?: boolean;
+  onUseBuiltinPromptChange?: (v: boolean) => void;
   onSceneChanged?: () => void;
 }) {
   const toast = useToast();
@@ -51,13 +54,13 @@ export function PromptPreview({
   const disableScene = mode === "reference";
   const hasReference = mode === "reference" && referenceImage !== null;
   const swrKey = open
-    ? `prompt-${sid}-${vid ?? ""}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${mode}-${hasReference}`
+    ? `prompt-${sid}-${vid ?? ""}-${extraWeight}-${extraPrompt}-${extraNegativePrompt}-${mode}-${hasReference}-${useBuiltinPrompt}`
     : null;
   const { data, error } = useSWR(
     swrKey,
     () => api.previewPrompt(
       pid, sid, extraPrompt, extraWeight, extraNegativePrompt,
-      disableScene, hasReference, vid,
+      disableScene, hasReference, vid, useBuiltinPrompt,
     ),
   );
 
@@ -93,11 +96,30 @@ export function PromptPreview({
 
   return (
     <div>
-      {/* 选项卡：模板 / 参考图 / 都不选 */}
-      <div className="flex gap-1 mb-3">
+      {/* 选项卡：模板 / 参考图 / 都不选 + 内置提示词开关 */}
+      <div className="flex gap-1 mb-3 items-center">
         <TabBtn active={mode === "template"} onClick={() => onModeChange("template")}>📋 模板</TabBtn>
         <TabBtn active={mode === "reference"} onClick={() => onModeChange("reference")}>🖼 参考图</TabBtn>
         <TabBtn active={mode === "none"} onClick={() => onModeChange("none")}>🚫 都不选</TabBtn>
+        <div className="flex-1" />
+        <label
+          className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none px-2 py-1 rounded hover:bg-zinc-800"
+          title={
+            useBuiltinPrompt
+              ? "关掉则不加任何系统规则，完全用下方「附加提示词」作为唯一 prompt — 高级用户用"
+              : "已关闭内置规则：当前只发「附加提示词」。建议附加提示词写完整"
+          }
+        >
+          <input
+            type="checkbox"
+            checked={useBuiltinPrompt}
+            onChange={(e) => onUseBuiltinPromptChange?.(e.target.checked)}
+            className="accent-blue-500"
+          />
+          <span className={useBuiltinPrompt ? "opacity-70" : "text-amber-300 font-semibold"}>
+            内置提示词{useBuiltinPrompt ? "" : "（已关）"}
+          </span>
+        </label>
       </div>
 
       {/* === 模板 tab === */}

@@ -65,6 +65,7 @@ def build_master_prompt(
     extra_weight: float = 0.0,
     extra_negative_prompt: str = "",
     has_reference: bool = False,
+    use_builtin: bool = True,
 ) -> str:
     """组装传给 Codex 的完整 prompt。
 
@@ -73,6 +74,9 @@ def build_master_prompt(
     - scene_prompt 为空且无参考图 → 纯人工模式
     - ratio_key ∈ CLOSEUP_KEYS → 仅返回说明文本（实际由 PIL crop 实现）
     - extra_* → 附加用户诉求与负面约束
+    - use_builtin=False → 跳过所有内置规则/模板/参考图脚手架，仅发用户
+      extra_prompt（高级用户自己掌控全部 prompt；scene/reference 仍由 extra_refs
+      作为图输入存在，只是文字层不引导）
     """
     size_hint = PROMPT_SIZE_HINT.get(ratio_key, "1024x1024")
     suffix = format_extra(extra_prompt, extra_weight)
@@ -89,6 +93,13 @@ def build_master_prompt(
             f"实现方式：PIL 从原图直接 crop + 放大（不调 Codex，不改图内容）。\n"
             f"输出尺寸：{size_hint} JPEG。"
         )
+
+    # 内置提示词关闭：完全交给用户。仅追加 size hint 让 Codex 知道目标尺寸。
+    if not use_builtin:
+        user_text = (extra_prompt or "").strip()
+        if not user_text:
+            user_text = "Generate image based on the input image(s)."
+        return f"{user_text}\n\nOutput: single {size_hint} JPEG." + neg_suffix
 
     if has_reference:
         # 参考图驱动：第一张 ref 是产品，第二张 ref 是场景参考图

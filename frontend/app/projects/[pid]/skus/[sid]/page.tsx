@@ -310,6 +310,8 @@ function SkuDetailPageInner() {
                 onExtraPromptChange={(v) => dispatchGen({ type: "set_prompt", value: v })}
                 onExtraWeightChange={(v) => dispatchGen({ type: "set_weight", value: v })}
                 onExtraNegativePromptChange={(v) => dispatchGen({ type: "set_negative", value: v })}
+                useBuiltinPrompt={genConfig.useBuiltinPrompt}
+                onUseBuiltinPromptChange={(v) => dispatchGen({ type: "set_builtin_prompt", value: v })}
                 onSceneChanged={() => mutate()}
               />
             </div>

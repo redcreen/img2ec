@@ -28,6 +28,7 @@ def process_image_task(
     overwrite: bool = False,
     disable_scene: bool = False,
     reference_image_path: str | None = None,
+    use_builtin_prompt: bool = True,
 ) -> str:
     settings = get_settings()
     db = SessionLocal()
@@ -124,6 +125,7 @@ def process_image_task(
                 overwrite=overwrite,
                 extra_weight=extra_weight,
                 reference_image=Path(reference_image_path) if reference_image_path else None,
+                use_builtin_prompt=use_builtin_prompt,
             )
             # 派生：合并新生成的 paths 到已有的（partial generation 累加）
             new_derived = {
